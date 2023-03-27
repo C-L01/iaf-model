@@ -33,19 +33,31 @@ function [sol] = solve_iaf(P)
 
         %% Perform post-spike potential updates
 
+        % uRestart is the new starting vector
+        uRestart = uEnd;
+
         % Find the neuron(s) that fired
-        firedNeurons = (uEnd >= P.theta_reset);  % logical array
-        
-        % Add presynaptic spikes to potentials, based on weights
-        u0 = uEnd + P.W * firedNeurons;
-        
-        % Reset fired neurons, explicitly done after the spike arrivals
-        % to avoid immediate refiring
-        u0(firedNeurons) = P.u_r;
+        firedNeurons = (uRestart >= P.V_F);  % logical array
+        unfiredNeurons = ones(P.N,1);
+
+        while any(firedNeurons)
+            % Update the list of unfired neurons
+            unfiredNeurons = unfiredNeurons & ~firedNeurons;
+
+            % Increment potential of unfired neurons based on weights
+            uRestart(unfiredNeurons) = uRestart(unfiredNeurons)...
+                                + P.W(unfiredNeurons,:) * firedNeurons;
+            
+            % Reset fired neurons
+            uRestart(firedNeurons) = P.V_R;
+
+            % The arrival of spikes might have caused new neurons to fire
+            firedNeurons = (uRestart >= P.V_F);  % logical array
+        end
         
 
         %% Restart the ode solver with updated initial condition
-        sol = odextend(sol,[],P.maxTime,u0);
+        sol = odextend(sol,[],P.maxTime,uRestart);
 
         % Update values at time of ode termination (could be maxTime)
         tEnd = sol.x(end);
