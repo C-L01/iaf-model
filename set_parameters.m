@@ -15,7 +15,7 @@ function P = set_parameters()
 
 %% Network settings
 
-    P.N = 5;                         % number of neurons
+    P.N = 20;                         % number of neurons
     P.w0 = 1;
     P.W = P.w0*ones(P.N,P.N) / P.N;     % synaptic weights
 %     P.W = P.w0*hilb(P.N) / P.N;     % synaptic weights
@@ -30,7 +30,8 @@ function P = set_parameters()
 
 
     %(A) External stimulus
-    I = @(t) 5.5;
+    I = @(t) 4.75;
+%     I = @(t) exp(t/10);
 
     tPulse = 1;                     %(s) time of pulse
     dt = 1e-2;                      %(s) time interval of pulse input
@@ -44,26 +45,15 @@ function P = set_parameters()
 
     % Note: for certain odes elementwise operations may be needed
     % Exponential
-%     P.ode = @(t,u) (-(u-u_rest) + delta_T * exp((u-theta_rh) / delta_T)...
-%                   + R*I(t))/tau;
+    P.ode = @(t,u) (-(u-u_rest) + delta_T * exp((u-theta_rh) / delta_T)...
+                  + R*I(t))/tau;
     % Leaky
-    P.ode = @(t,u) (-(u-u_rest) + R*I(t))/tau;
-
-
-    % Nondimensionalized parameters
-    % lam = c1/c0; ome1 = w1/c0; ome2 = w2/c0;
-    % rho0 = r0/(c0*duration); rho1 = r1/(c0*duration);
-    % gam0 = delta0/(c0*duration); gam1 = delta1/(c0*duration); mu = M/c0;
-    
-    % Nondimensionalized initial conditions
-    % tau_span = [tstart*c0 tend*c0];
-    % s0 = S0/N; s1 = S1/N; s2 = S2/N; i1 = I1/N; i2 = I2/N;
-    % y0 = [s0; s1; s2; i1; i2];
+%     P.ode = @(t,u) (-(u-u_rest) + R*I(t))/tau;
 
 
 %% Reset conditions
 % Conditions that determine what happens when a spike occurs
-    P.V_F = 5;             %(V) Firing threshold
+    P.V_F = 15;             %(V) Firing threshold
     P.V_R = -10;           %(V) Potential after reset
 
     % Event function for ode solver to stop at spikes
@@ -74,7 +64,7 @@ function P = set_parameters()
         % Stop if the reset potential is reached
         isterminal = true;
         
-        % Should only be approaching theta_reset from below
+        % Should only be approaching V_F from below
         direction = -1;
     end
 
@@ -82,7 +72,7 @@ function P = set_parameters()
 %% Exit conditions
 % Run until either the maximum number of spikes or the maximum time 
     P.maxSpikes = 100*P.N;    %(#) Number of spikes before exit
-    P.maxTime = 20;        %(s) Maximum simulation time
+    P.maxTime = 40;        %(s) Maximum simulation time
 
 
 %% Initial conditions
