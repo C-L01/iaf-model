@@ -35,14 +35,19 @@ sol = solve_iaf(P);
 uSol = sol.y(:,keptIndices);
 
 % Get spike times
-spikeTimes = sol.xe;
-numSpikes = length(spikeTimes);
-firingNeurons = sol.ye >= P.V_F;
+spikeTimes = sol.xe;                % could be multiple spikes at one time
+numSpikeTimes = length(spikeTimes);
+% Because of Càdlàgness, we check for equality to the reset value
+% to detect all spikes at a spike time.
+% Note that, theoretically, this could detect spikes that are not spikes
+% if a neuron happens to be exactly at V_R at a spike time.
+firingNeurons = (uSol(:,ismember(time,spikeTimes)) == P.V_R);
 
 % Approximate population activity A(t)
-spikeOccurs = arrayfun(@(t) ismember(t,spikeTimes),time);
+spikeCnt = arrayfun(@(t) ismember(t,spikeTimes)...
+            * sum(sum(firingNeurons(:,t==spikeTimes))),time);
 timeWindow = 1e-1*P.tau*(P.maxTime - P.tStart);   % average activity time window
-A = movmean(spikeOccurs,timeWindow,'SamplePoints',time) / (P.N*timeWindow);
+A = movmean(spikeCnt,timeWindow,'SamplePoints',time) / (P.N*timeWindow);
 
 density = false;
 
@@ -74,11 +79,11 @@ end
 if P.N <= 5
     % Print firing times
     disp("Firing times:")
-    fmt = ['\t\t\t\t\t' repmat('%5.2f ',1,numSpikes-1) '%5.2f\n\n'];
+    fmt = ['\t\t\t\t\t' repmat('%5.2f ',1,numSpikeTimes-1) '%5.2f\n\n'];
     fprintf(fmt,spikeTimes)
     
     disp("Firing neurons:")
-    fmt = ['\t\t\t\t\t' repmat('%5i ',1,numSpikes-1) '%5i\n'];
+    fmt = ['\t\t\t\t\t' repmat('%5i ',1,numSpikeTimes-1) '%5i\n'];
     fprintf(fmt,firingNeurons')
 end
 
