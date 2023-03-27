@@ -37,39 +37,41 @@ uSol = sol.y(:,keptIndices);
 % Get spike times
 spikeTimes = sol.xe;
 numSpikes = length(spikeTimes);
-firingNeurons = sol.ye >= P.theta_reset;
+firingNeurons = sol.ye >= P.V_F;
 
 % Approximate population activity A(t)
 spikeOccurs = arrayfun(@(t) ismember(t,spikeTimes),time);
 timeWindow = 1e-1*P.tau*(P.maxTime - P.tStart);   % average activity time window
 A = movmean(spikeOccurs,timeWindow,'SamplePoints',time) / (P.N*timeWindow);
 
+density = false;
 
-% Approximate density evolution p(t,u)
-h = figure;
-axis([P.u_r P.theta_reset 0 1]);    % fix axis limits
-xlabel("$u$ (V)",'Interpreter','latex','FontSize',16)
-ylabel("Density",'FontSize',16)
-ax = gca;
-ax.NextPlot = 'replaceChildren';
-h.Visible = 'off';
-
-timeBinSize = 1;                 % the time length to group together
-timeBins = P.tStart:timeBinSize:P.maxTime;
-timeBinInc = find(diff(discretize(time,timeBins))); % increment indices
-timeBinInc = [1 timeBinInc];                        % start at time index 1
-
-loops = numel(timeBinInc)-1;
-M(loops) = struct('cdata',[],'colormap',[]);
-for j=1:loops
-%     fprintf("Loop %i\n",j)
-    histogram(uSol(:,timeBinInc(j):timeBinInc(j+1)),'Normalization','pdf')
-    drawnow
-    M(j) = getframe(h);
+if density
+    % Approximate density evolution p(t,u)
+    h = figure;
+    axis([P.V_R P.V_F 0 1]);    % fix axis limits
+    xlabel("$u$ (V)",'Interpreter','latex','FontSize',16)
+    ylabel("Density",'FontSize',16)
+    ax = gca;
+    ax.NextPlot = 'replaceChildren';
+    h.Visible = 'off';
+    
+    timeBinSize = 1;                 % the time length to group together
+    timeBins = P.tStart:timeBinSize:P.maxTime;
+    timeBinInc = find(diff(discretize(time,timeBins))); % increment indices
+    timeBinInc = [1 timeBinInc];                        % start at time index 1
+    
+    loops = numel(timeBinInc)-1;
+    M(loops) = struct('cdata',[],'colormap',[]);
+    for j=1:loops
+    %     fprintf("Loop %i\n",j)
+        histogram(uSol(:,timeBinInc(j):timeBinInc(j+1)),'Normalization','pdf')
+        drawnow
+        M(j) = getframe(h);
+    end
 end
 
-
-if P.N <= 20
+if P.N <= 5
     % Print firing times
     disp("Firing times:")
     fmt = ['\t\t\t\t\t' repmat('%5.2f ',1,numSpikes-1) '%5.2f\n\n'];
@@ -84,10 +86,10 @@ end
 %% Plot results
 
 % Separate potential line plots over time
-if P.N <= 50
+if P.N <= 20
     f1 = figure;
     plot(time,uSol,'LineWidth',2.0)
-    ylim([P.u_r P.theta_reset])
+    ylim([P.V_R P.V_F])
     xlabel("$t$ (s)",'Interpreter','latex','FontSize',16)
     ylabel("Potential (V)",'FontSize',16)
     title(sprintf("Potential over time for %i coupled neurons",P.N),'FontSize',20)
@@ -99,20 +101,21 @@ end
 % Spikes
 f2 = figure;
 plot(time,A,'LineWidth',2.0)
-% ylim([0 P.theta_reset])
+% ylim([0 P.V_F])
 xlabel("$t$ (s)",'Interpreter','latex','FontSize',16)
 ylabel("$A(t)$ (\#/s)",'Interpreter','latex','FontSize',16)
 title(sprintf("Population activity for %i coupled neurons",P.N),...
        'FontSize',20)
 
 % Play potential density movie
-% figure;
-% movie(gcf,M,1,3);
-
+if density
+    figure;
+    movie(gcf,M,1,3);
+end
 
 %% Save figures
 
-save = true;
+save = false;
 
 if save
 

@@ -15,7 +15,7 @@ function P = set_parameters()
 
 %% Network settings
 
-    P.N = 20;                         % number of neurons
+    P.N = 5;                         % number of neurons
     P.w0 = 1;
     P.W = P.w0*ones(P.N,P.N) / P.N;     % synaptic weights
 %     P.W = P.w0*hilb(P.N) / P.N;     % synaptic weights
@@ -30,7 +30,7 @@ function P = set_parameters()
 
 
     %(A) External stimulus
-    I = @(t) 4.75;
+    I = @(t) 5.5;
 
     tPulse = 1;                     %(s) time of pulse
     dt = 1e-2;                      %(s) time interval of pulse input
@@ -43,8 +43,12 @@ function P = set_parameters()
     P.I = I;
 
     % Note: for certain odes elementwise operations may be needed
-    P.ode = @(t,u) (-(u-u_rest) + delta_T * exp((u-theta_rh) / delta_T)...
-                  + R*I(t))/tau;
+    % Exponential
+%     P.ode = @(t,u) (-(u-u_rest) + delta_T * exp((u-theta_rh) / delta_T)...
+%                   + R*I(t))/tau;
+    % Leaky
+    P.ode = @(t,u) (-(u-u_rest) + R*I(t))/tau;
+
 
     % Nondimensionalized parameters
     % lam = c1/c0; ome1 = w1/c0; ome2 = w2/c0;
@@ -59,13 +63,13 @@ function P = set_parameters()
 
 %% Reset conditions
 % Conditions that determine what happens when a spike occurs
-    P.theta_reset = 15;    %(V) Reset threshold
-    P.u_r = -10;           %(V) Potential after reset
+    P.V_F = 5;             %(V) Firing threshold
+    P.V_R = -10;           %(V) Potential after reset
 
     % Event function for ode solver to stop at spikes
     function [value,isterminal,direction] = ResetEvent(~,u)
     
-        value = min(P.theta_reset - u);
+        value = min(P.V_F - u);
         
         % Stop if the reset potential is reached
         isterminal = true;
@@ -78,7 +82,7 @@ function P = set_parameters()
 %% Exit conditions
 % Run until either the maximum number of spikes or the maximum time 
     P.maxSpikes = 100*P.N;    %(#) Number of spikes before exit
-    P.maxTime = 40;        %(s) Maximum simulation time
+    P.maxTime = 20;        %(s) Maximum simulation time
 
 
 %% Initial conditions
@@ -88,13 +92,13 @@ function P = set_parameters()
     %(V) Starting potentials
     P.r = 5;                        %(V) (Expected) radius of the initial potentials
     P.u0 = linspace(P.r,-P.r,P.N);
-%     P.u0 = 2*P.r*(rand(P.N,1)-0.5);
-    %     P.u0 = P.r*randn(P.N,1);
+%     P.u0 = 2*P.r*(rand(P.N,1)-0.5);   % ~Unif[-r,r]
+%     P.u0 = P.r*randn(P.N,1);          % ~N(0,r^2)
 
 
 %% ode23s options struct
     P.Options = odeset('RelTol', 1e-4,...
-                       'AbsTol', 1e-8,...
+                       'AbsTol', 1e-6,...
                        'Events', @ResetEvent,...
                        'Vectorized', true,...
                        'InitialStep', 1e-3,...
