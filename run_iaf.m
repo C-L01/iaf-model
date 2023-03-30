@@ -41,6 +41,7 @@ numSpikeTimes = length(spikeTimes);
 % to detect all spikes at a spike time.
 % Note that, theoretically, this could detect spikes that are not spikes
 % if a neuron happens to be exactly at V_R at a spike time.
+% TODO: check that at t_{i-1} the potential is close to V_F
 firingNeurons = (uSol(:,ismember(time,spikeTimes)) == P.V_R);
 
 % Approximate population activity A(t)
@@ -76,6 +77,11 @@ if density
     end
 end
 
+% Estimate variance evolution
+uMean = sum(uSol,1) / P.N;
+uVar = sum((uMean - uSol).^2,1) / P.N;  % or P.N - 1 to estimate actual var
+
+
 if P.N <= 5
     % Print firing times
     disp("Firing times:")
@@ -103,14 +109,25 @@ if P.N <= 20
 end
 
 
-% Spikes
+% Activity
 f2 = figure;
 plot(time,A,'LineWidth',2.0)
-% ylim([0 P.V_F])
 xlabel("$t$ (s)",'Interpreter','latex','FontSize',16)
 ylabel("$A(t)$ (\#/s)",'Interpreter','latex','FontSize',16)
 title(sprintf("Population activity for %i coupled neurons",P.N),...
        'FontSize',20)
+
+
+% Variance
+f3 = figure;
+plot(time,uVar,'LineWidth',2.0)
+% ylim([0 1])
+xlabel("$t$ (s)",'Interpreter','latex','FontSize',16)
+ylabel("$V(t)$ (V$^2$)",'Interpreter','latex','FontSize',16)  % 2 V's is confusing
+title(sprintf("Variance evolution for %i coupled neurons",P.N),...
+       'FontSize',20)
+
+
 
 % Play potential density movie
 if density
@@ -140,6 +157,10 @@ if save
     
     % Activity figure
     exportgraphics(f2,strcat('A_',paramInfo,'.pdf'),'ContentType', ...
+                    'vector','BackgroundColor','none')
+    
+    % Variance figure
+    exportgraphics(f3,strcat('V_',paramInfo,'.pdf'),'ContentType', ...
                     'vector','BackgroundColor','none')
     
     % Potential density evolution movie
