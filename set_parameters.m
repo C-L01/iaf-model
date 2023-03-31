@@ -15,7 +15,7 @@ function P = set_parameters()
 
 %% Network settings
 
-    P.N = 20;                         % number of neurons
+    P.N = 100;                         % number of neurons
     P.w0 = 1;
     P.W = P.w0*ones(P.N,P.N) / P.N;     % synaptic weights
 %     P.W = P.w0*hilb(P.N) / P.N;     % synaptic weights
@@ -51,6 +51,17 @@ function P = set_parameters()
 %     P.ode = @(t,u) (-(u-u_rest) + R*I(t))/tau;
 
 
+
+    % Symbolic ode (temporary manual implementation)
+%     syms odeSym tSym uSym;
+%     odeSym(tSym,uSym) = (-(uSym-0) + 1 * exp((uSym-5) / 1)...
+%                   + 1*4.75)/1;
+%     jacobian(odeSym);
+
+    % Precompute Jacobian, assuming constant I
+%     P.J = @(t,u) [0, -1 + exp((u - theta_rh) / delta_T)] / tau;
+
+
 %% Reset conditions
 % Conditions that determine what happens when a spike occurs
     P.V_F = 15;             %(V) Firing threshold
@@ -72,7 +83,7 @@ function P = set_parameters()
 %% Exit conditions
 % Run until either the maximum number of spikes or the maximum time 
     P.maxSpikes = 100*P.N;    %(#) Number of spikes before exit
-    P.maxTime = 40;        %(s) Maximum simulation time
+    P.maxTime = 20;        %(s) Maximum simulation time
 
 
 %% Initial conditions
@@ -87,12 +98,15 @@ function P = set_parameters()
 
 
 %% ode23s options struct
+
     P.Options = odeset('RelTol', 1e-4,...
                        'AbsTol', 1e-6,...
                        'Events', @ResetEvent,...
                        'Vectorized', true,...
                        'InitialStep', 1e-3,...
-                       'MaxStep', 1e-2);
+                       'MaxStep', 1e-2,...
+                       'JPattern', speye(P.N));
+%                        'Jacobian', P.J);
     
     % Initial step is needed in case there is a pulse (using heaviside)
     % near the start of the time interval
