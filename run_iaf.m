@@ -21,6 +21,12 @@ P = set_parameters();
 % Solve ode
 sol = solve_iaf(P);
 
+% Whether to compute density evolution (somewhat expensive)
+density = false;
+
+% Whether to save the produced figures
+save = false;
+
 
 %% Extract and prepare the data for plotting
 
@@ -49,8 +55,6 @@ spikeCnt = arrayfun(@(t) ismember(t,spikeTimes)...
             * sum(sum(firingNeurons(:,t==spikeTimes))),time);
 timeWindow = P.tau*min(5,(P.maxTime - P.tStart)/10);   % average activity time window
 A = movmean(spikeCnt,timeWindow,'SamplePoints',time) / (P.N*timeWindow);
-
-density = false;
 
 if density
     % Approximate density evolution p(t,u)
@@ -136,8 +140,6 @@ if density
 end
 
 %% Save figures
-
-save = false;
 
 if save
 
