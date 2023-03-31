@@ -47,7 +47,7 @@ firingNeurons = (uSol(:,ismember(time,spikeTimes)) == P.V_R);
 % Approximate population activity A(t)
 spikeCnt = arrayfun(@(t) ismember(t,spikeTimes)...
             * sum(sum(firingNeurons(:,t==spikeTimes))),time);
-timeWindow = 1e-1*P.tau*(P.maxTime - P.tStart);   % average activity time window
+timeWindow = P.tau*min(5,(P.maxTime - P.tStart)/10);   % average activity time window
 A = movmean(spikeCnt,timeWindow,'SamplePoints',time) / (P.N*timeWindow);
 
 density = false;
