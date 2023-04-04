@@ -15,7 +15,7 @@ function P = set_parameters()
 
 %% Network settings
 
-    P.N = 100;                         % number of neurons
+    P.N = 1000;                         % number of neurons
     P.w0 = 1;
     P.W = P.w0*ones(P.N,P.N) / P.N;     % synaptic weights
 %     P.W = P.w0*hilb(P.N) / P.N;     % synaptic weights
@@ -64,7 +64,7 @@ function P = set_parameters()
 
 %% Reset conditions
 % Conditions that determine what happens when a spike occurs
-    P.V_F = 15;             %(V) Firing threshold
+    P.V_F = 6;             %(V) Firing threshold
     P.V_R = -10;           %(V) Potential after reset
 
     % Event function for ode solver to stop at spikes
@@ -83,7 +83,7 @@ function P = set_parameters()
 %% Exit conditions
 % Run until either the maximum number of spikes or the maximum time 
     P.maxSpikes = 100*P.N;    %(#) Number of spikes before exit
-    P.maxTime = 20;        %(s) Maximum simulation time
+    P.maxTime = 50;        %(s) Maximum simulation time
 
 
 %% Initial conditions
