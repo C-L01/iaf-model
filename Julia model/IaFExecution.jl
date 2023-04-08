@@ -1,40 +1,46 @@
+include("IaFMechanics.jl")
 using .IaFMechanics, Parameters, DifferentialEquations, ParameterizedFunctions, Plots
 
-# TODO: maybe create such a function in the future
-# function solveiaf(u0, tStart, tEnd)#, params::Para)
-#     # @unpack f, p, options = params
 
-#     tspan = (tStart, tEnd)
+#(A) External stimulus
+I = t -> 5
+# I(t) = exp(t/10)
+
+# TODO: external pulses should be implemented as an integration event; make sure to tstop at the pulse time
+# tPulse = 1                     #(s) time of pulse
+# dt = 1e-2                      #(s) time interval of pulse input
+# dV = 5.5                         #(V) voltage increase due to pulse
+# I(t) = (dV/dt) * (heaviside(t-tPulse) - heaviside(t-tPulse-dt))
+
+
+# Exponential driving force
+fExp = @ode_def ExponentialIaF begin
+    du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R*I(t)) / tau
+end V_rest delta_T theta_rh R tau
+
+# Leaky driving force
+fLeaky = @ode_def LeakyIaF begin
+    du = (-(u - V_rest) + R*I(t)) / tau
+end V_rest R tau
+
+
+function solveiaf(u0, tStart, tEnd, params::DrivingForceParameters)
+    # @unpack f, p, options = params
+    @unpack V_rest, R, tau = params
+
+    tspan = (tStart, tEnd)
     
-#     # Solve until the first spike (or tEnd if there are none)
-#     prob = ODEProblem(f, u0, tspan, p)
-#     sol = solve(prob; options...)
+    # Solve until the first spike (or tEnd if there are none)
+    prob = ODEProblem(fLeaky, u0, tspan, (V_rest, R, tau))
+    sol = solve(prob; options...)
 
-#     return sol
-# end
+    return sol
+end
 
+params = DrivingForceParameters{Float64}()
+u0 = generate_u0(3)         # uniformly spaced around 0
 
+sol = solveiaf(u0, 0, 5, params)
 
-
-# @unpack f, p, options = params
-
-tspan = (tStart, tEnd)
-
-# Solve until the first spike (or tEnd if there are none)
-prob = ODEProblem(f, u0, tspan, p)
-sol = solve(prob; options...)
-
-
-
-
-
-#(V) Starting potentials
-r::Float64 = 5                        #(V) (Expected) radius of the initial potentials
-u0::Vector{Float64} = range(-r, r, N)
-# u0 = 2*r*(rand(N,1)-0.5)   # ~Unif[-r,r]
-# u0 = r*randn(N,1)          # ~N(0,r^2)
-
-sol = solveiaf(u0, 0, 5)#, params)
-
-# plot(sol, idxs = (1,2))
+plot(sol, idxs = [1])
 # plot(sol.t, sol.u[1])
