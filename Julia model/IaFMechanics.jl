@@ -28,7 +28,7 @@ const W = (w0 / N) * ones(N, N)  # synaptic weights
 ## Initial conditions
 "Create the initial condition u0 as a uniformly spaced vector of length N."
 function generate_u0(r::Real)::Vector{Float64}
-    return range(-r, r, N)      # TODO: add u0 dependence
+    return range(r, -r, N)      # TODO: add u0 dependence
 end
 
 # TODO:
@@ -39,14 +39,14 @@ end
 
 ## Reset conditions
 
-V_F::Float64 = 4.5             #(V) Firing threshold
-V_R::Float64 = -10           #(V) Potential after reset
+const V_F::Float64 = 5             #(V) Firing threshold
+const V_R::Float64 = -10           #(V) Potential after reset
 
 """
 Check whether any neurons have fired. Used for Callback.
 """
-function fireCondition!(out, u, t, integrator)
-    out = u .- V_F
+function fireCondition!(out, u::Vector{Float64}, t::Real, integrator)
+    out .= u .- V_F
 end
 
 
@@ -80,6 +80,10 @@ end
 
 
 cb = VectorContinuousCallback(fireCondition!, fire!, nothing, N)
+# affect_neg! is nothing, as it is called when fireCondition! is found to be 0
+# and the cross is a downcrossing (from positive to negative)
+# This is nothing because this should not happen
+
 
 
 ## ode solver options
@@ -87,6 +91,5 @@ cb = VectorContinuousCallback(fireCondition!, fire!, nothing, N)
 options = (reltol = 1e-4,
            abstol = 1e-6,
            callback = cb)
-
 
 end
