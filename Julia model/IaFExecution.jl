@@ -1,9 +1,4 @@
-if isdefined(@__MODULE__, :IaFMechanics)
-    IaFMechanics isa Module || error("IaFMechanics is present and it is not a Module")
-else
-    includet("IaFMechanics.jl")
-end
-
+includet("IaFMechanics.jl")
 
 using .IaFMechanics, Parameters, DifferentialEquations, ParameterizedFunctions, LinearAlgebra, Plots
 
@@ -23,8 +18,6 @@ Iext = t -> 6
 fExp = @ode_def ExponentialIaF begin
     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R*Iext(t)) / tau
 end V_rest delta_T theta_rh R tau
-
-# Aleaky = 
 
 # Leaky driving force
 function fLeaky(du, u, p, t)
@@ -47,8 +40,10 @@ function solveiaf(u0::Vector{Float64}, tStart::Real, tEnd::Real, params::Driving
     return sol
 end
 
+N::Int = IaFMechanics.N
+
 params = DrivingForceParameters{Float64}()
-u0 = generate_u0(3)         # uniformly spaced around 0
+u0 = generate_u0(3, params.V_rest, 100)         # uniformly spaced around 0
 
 sol = solveiaf(u0, 0, 20, params)
 

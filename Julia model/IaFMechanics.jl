@@ -18,17 +18,17 @@ end
 
 
 ## Network settings
-
-const N::Int = 10              # number of neurons
-const w0::Float64 = 1
+# TODO: turn these into settable parameters
+const N::Int = 100              # number of neurons
+const w0::Float64 = -1
 const W = (w0 / N) * ones(N, N)  # synaptic weights
 # W = w0*hilb(N) / N
 
 
 ## Initial conditions
 "Create the initial condition u0 as a uniformly spaced vector of length N."
-function generate_u0(r::Real)::Vector{Float64}
-    return range(r, -r, N)      # TODO: add u0 dependence
+function generate_u0(r::Real, V_rest::Real, N::Int)::Vector{Float64}
+    return range(V_rest + r, V_rest - r, N)
 end
 
 # TODO:
@@ -64,7 +64,7 @@ function fire!(integrator, firingNeuron::Int)
 
         # The arrival of the spike might have caused new neurons to fire
         # Order of processing spikes shouldn't matter (because we reset at end), so we just do a linear search and take the first one
-        for i = 1:N
+        for i = 1:length(integrator.u)
             if !(i in firedNeurons) && integrator.u[i] >= V_F
                 firingNeuron = i
                 push!(firedNeurons, firingNeuron)
