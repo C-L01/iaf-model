@@ -47,7 +47,6 @@ numSpikeTimes = length(spikeTimes);
 % to detect all spikes at a spike time.
 % Note that, theoretically, this could detect spikes that are not spikes
 % if a neuron happens to be exactly at V_R at a spike time.
-% TODO: check that at t_{i-1} the potential is close to V_F
 firingNeurons = (uSol(:,ismember(time,spikeTimes)) == P.V_R);
 
 % Approximate population activity A(t)
@@ -142,12 +141,6 @@ end
 %% Save figures
 
 if save
-
-    % Set background color
-    % f = gcf;
-    % ax = gca;
-    % set(f,'color',[241 239 239]/255);
-    % set(ax,'color',[241 239 239]/255);
     
     paramInfo = sprintf('N=%i_w0=%.1f_I0=%.2f_r=%i',P.N,P.w0,P.I(0),P.r);
     

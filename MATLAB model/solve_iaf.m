@@ -27,10 +27,6 @@ function [sol] = solve_iaf(P)
 
     for spikecnt=1:(P.maxSpikes-1)
 
-%         if rem(spikecnt,10) == 0
-%             fprintf("Spike %i\n", spikecnt)
-%         end
-
         %% Perform post-spike potential updates
 
         % uRestart is the new starting vector
