@@ -3,7 +3,7 @@ Contains the mechanics needed to numerically solve an integrate-and-fire model.
 """
 module IaFMechanics
 
-export IaFParameters, genu0, genf, gencallback, solveiaf
+export IaFParameters, genu0, genf, gencallback
 
 using Parameters, DifferentialEquations#, ParameterizedFunctions
 
@@ -21,7 +21,14 @@ Parameters related to the evolution of the potential of a single neuron, the sha
     theta_rh = 5        #(V) Rheobase threshold
     R = 1               #(Ω) Resistance
 
-    # Iext::Function = t -> 6    #(A) External current
+    Iext::Function = t -> 0    #(A) External current
+    # Iext = t -> exp(t/10)
+
+    # TODO: external pulses should be implemented as an integration event; make sure to tstop at the pulse time
+    # tPulse = 1                     #(s) time of pulse
+    # dt = 1e-2                      #(s) time interval of pulse input
+    # dV = 5.5                         #(V) voltage increase due to pulse
+    # Iext(t) = (dV/dt) * (heaviside(t-tPulse) - heaviside(t-tPulse-dt))
 
     # Reset parameters
     V_F = 5             #(V) Firing threshold
@@ -39,6 +46,7 @@ Create the initial condition u0 as a uniformly spaced vector of length N.
 """
 function genu0(r::Real, parameters::IaFParameters)::Vector{Float64}
     @unpack V_rest, N = parameters
+
     return range(V_rest + r, V_rest - r, N)
 
     # TODO:
@@ -50,8 +58,8 @@ end
 """
 Create the driving force function f based on given parameters.
 """
-function genf(Iext::Function, parameters::IaFParameters; exponential::Bool = false)::Function
-    @unpack tau, V_rest, delta_T, theta_rh, R = parameters
+function genf(parameters::IaFParameters; exponential::Bool = false)::Function
+    @unpack tau, V_rest, delta_T, theta_rh, R, Iext = parameters
 
     # Exponential driving force
     if exponential
@@ -97,17 +105,19 @@ function gencallback(parameters::IaFParameters)::VectorContinuousCallback
         while firingNeuron != 0
 
             # Increment potential of all neurons based on weights
-            integrator.u .+= W[:,firingNeuron]                      # TODO: only doing this for unfired neurons might be better (or not)
+            integrator.u .+= W[:,firingNeuron]          # TODO: only doing this for unfired neurons might be better (or not)
 
             # The arrival of the spike might have caused new neurons to fire
-            # Order of processing spikes shouldn't matter (because we reset at end), so we just do a linear search and take the first one
-            for i = 1:length(integrator.u)
+            # Order of processing spikes shouldn't matter (because we reset at end), so we do a linear search and take the first one
+
+            firingNeuron = 0    # keeps this value if there are no more firing neurons
+
+            for i = 1:N
                 if !(i in firedNeurons) && integrator.u[i] >= V_F
                     firingNeuron = i
                     push!(firedNeurons, firingNeuron)
                     break
                 end
-                firingNeuron = 0    # no more firing neurons
             end
         end
 
@@ -121,14 +131,14 @@ function gencallback(parameters::IaFParameters)::VectorContinuousCallback
 end
 
 
+# TODO: this logic currently does not warrant its own function
+# function solveiaf(f::Function, u0::Vector{Float64}, tStart::Real, tEnd::Real, options::NamedTuple)
+#     tspan = (tStart, tEnd)
 
-function solveiaf(f::Function, u0::Vector{Float64}, tStart::Real, tEnd::Real, options::NamedTuple)
-    tspan = (tStart, tEnd)
+#     prob = ODEProblem(f, u0, tspan)
+#     sol = solve(prob; options...)
 
-    prob = ODEProblem(f, u0, tspan)
-    sol = solve(prob; options...)
-
-    return sol
-end
+#     return sol
+# end
 
 end
