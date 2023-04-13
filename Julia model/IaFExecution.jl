@@ -1,6 +1,6 @@
 includet("IaFMechanics.jl")
 
-using .IaFMechanics, Parameters, DifferentialEquations, ParameterizedFunctions, LinearAlgebra, Plots
+using .IaFMechanics, Parameters, DifferentialEquations, Plots
 
 
 #(A) External stimulus
@@ -14,38 +14,19 @@ Iext = t -> 6
 # Iext(t) = (dV/dt) * (heaviside(t-tPulse) - heaviside(t-tPulse-dt))
 
 
-# Exponential driving force
-fExp = @ode_def ExponentialIaF begin
-    du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R*Iext(t)) / tau
-end V_rest delta_T theta_rh R tau
+# Get parameters
+parameters = IaFParameters{Float64}()
 
-# Leaky driving force
-function fLeaky(du, u, p, t)
-    # du = (-(u - V_rest) + R*Iext(t)) / tau
-    @. du = ( -(u - p[1]) + p[2]*Iext(t) ) / p[3]
-    # mul!(du, UniformScaling(-1/tau), u)
-end
+## ode solver options
+options = (reltol = 1e-4,
+           abstol = 1e-6,
+           callback = gencallback(parameters))
 
 
-function solveiaf(u0::Vector{Float64}, tStart::Real, tEnd::Real, params::DrivingForceParameters)
-    # @unpack f, p, options = params
-    @unpack V_rest, R, tau = params
+u0 = genu0(3, parameters)         # uniformly spaced with some radius
+f = genf(Iext, parameters)
 
-    tspan = (tStart, tEnd)
-    
-    # Solve until the first spike (or tEnd if there are none)
-    prob = ODEProblem(fLeaky, u0, tspan, (V_rest, R, tau))
-    sol = solve(prob; options...)
-
-    return sol
-end
-
-N::Int = IaFMechanics.N
-
-params = DrivingForceParameters{Float64}()
-u0 = generate_u0(3, params.V_rest, 100)         # uniformly spaced around 0
-
-sol = solveiaf(u0, 0, 20, params)
+sol = solveiaf(f, u0, 0, 20, options)
 
 plot(sol)
-# plot(sol.t, sol.u[1])
+# plot(sol, idxs=1)
