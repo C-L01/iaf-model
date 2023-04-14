@@ -3,7 +3,7 @@ Contains the mechanics needed to numerically solve an integrate-and-fire model.
 """
 module IaFMechanics
 
-export IaFParameters, genu0, genf, gencallback
+export IaFParameters, genu0, genfLeaky, genfExp, gencallback
 
 using Parameters, DifferentialEquations#, ParameterizedFunctions
 
@@ -12,8 +12,6 @@ using Parameters, DifferentialEquations#, ParameterizedFunctions
 Parameters related to the evolution of the potential of a single neuron, the shape of the network, and neuron interactions.
 """
 @with_kw struct IaFParameters{T<:Real} @deftype T
-    # TODO: maybe wrap in @consts begin end
-
     # Driving force parameters
     tau = 1             #(s) Time constant
     V_rest = 0          #(V) Resting potential
@@ -55,79 +53,84 @@ function genu0(r::Real, parameters::IaFParameters)::Vector{Float64}
 end
 
 
+# Leaky driving force
+function genfLeaky(p::IaFParameters)
+    @unpack tau, V_rest, delta_T, theta_rh, R, Iext = p
+
+    function fLeaky!(du, u, p, t)
+        @. du = ( -(u - V_rest) + R * Iext(t) ) / tau
+    end
+
+    return fLeaky!
+end
+
+
+# Exponential driving force
+# fExp = @ode_def ExponentialIaF begin
+#     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t)) / tau
+# end V_rest delta_T theta_rh R tau
+
+function genfExp(p::IaFParameters)
+    @unpack tau, V_rest, delta_T, theta_rh, R, Iext = p
+
+    function fExp!(du, u, p, t)
+        @. du = ( -(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t) ) / tau
+    end
+
+    return fExp!
+end
+
+
+
+
+
+
 """
-Create the driving force function f based on given parameters.
+Check whether any neurons have fired. Used for Callback.
 """
-function genf(parameters::IaFParameters; exponential::Bool = false)::Function
-    @unpack tau, V_rest, delta_T, theta_rh, R, Iext = parameters
+function fireCondition!(out, u::Vector{Float64}, t::Real, integrator)
+    @. out = u - integrator.p.V_F
+end
 
-    # Exponential driving force
-    if exponential
-        # fExp = @ode_def ExponentialIaF begin
-        #     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R*Iext(t)) / tau
-        # end V_rest delta_T theta_rh R tau
 
-        return function fExp(du, u, p, t)
-            @. du = ( -(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R*Iext(t) ) / tau
-        end
+"""
+Perform post-spike potential updates, where firingNeuron is the neuron that fires (first). Used for Callback.
+"""
+function fire!(integrator, firingNeuron::Int)
+    
+    firedNeurons::Vector{Int} = [firingNeuron]
 
-    # Leaky driving force
-    else
-        return function fLeaky(du, u, p, t)
-            @. du = ( -(u - V_rest) + R*Iext(t) ) / tau
-            # mul!(du, UniformScaling(-1/tau), u)
+    while firingNeuron != 0
+
+        # Increment potential of all neurons based on weights
+        integrator.u .+= integrator.p.W[:, firingNeuron]      # TODO: only doing this for unfired neurons might be better (or not)
+
+        # The arrival of the spike might have caused new neurons to fire
+        # Order of processing spikes shouldn't matter (because we reset at end), so we do a linear search and take the first one
+
+        firingNeuron = 0    # keeps this value if there are no more firing neurons
+
+        for i = 1:integrator.p.N
+            if !(i in firedNeurons) && integrator.u[i] >= integrator.p.V_F
+                firingNeuron = i
+                push!(firedNeurons, firingNeuron)
+                break
+            end
         end
     end
+
+    # Reset potentials of fired neurons
+    integrator.u[firedNeurons] .= integrator.p.V_R
 end
+
 
 
 """
 Create the VectorContinuousCallback used by the ODE solver to check for and handle spikes.
 """
-function gencallback(parameters::IaFParameters)::VectorContinuousCallback
-    @unpack V_R, V_F, N, W = parameters
-
-    """
-    Check whether any neurons have fired. Used for Callback.
-    """
-    function fireCondition!(out, u::Vector{Float64}, t::Real, integrator)
-        @. out = u - V_F
-    end
-
-
-    """
-    Perform post-spike potential updates, where firingNeuron is the neuron that fires (first). Used for Callback.
-    """
-    function fire!(integrator, firingNeuron::Int)
-        
-        firedNeurons::Vector{Int} = [firingNeuron]
-
-        while firingNeuron != 0
-
-            # Increment potential of all neurons based on weights
-            integrator.u .+= W[:,firingNeuron]          # TODO: only doing this for unfired neurons might be better (or not)
-
-            # The arrival of the spike might have caused new neurons to fire
-            # Order of processing spikes shouldn't matter (because we reset at end), so we do a linear search and take the first one
-
-            firingNeuron = 0    # keeps this value if there are no more firing neurons
-
-            for i = 1:N
-                if !(i in firedNeurons) && integrator.u[i] >= V_F
-                    firingNeuron = i
-                    push!(firedNeurons, firingNeuron)
-                    break
-                end
-            end
-        end
-
-        # Reset potentials of fired neurons
-        integrator.u[firedNeurons] .= V_R
-    end
-
+function gencallback(N::Int)::VectorContinuousCallback
     # fireCondition! should never detect a downcrossing root, hence the nothing argument
     return VectorContinuousCallback(fireCondition!, fire!, nothing, N)
-
 end
 
 

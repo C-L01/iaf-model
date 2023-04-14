@@ -1,17 +1,24 @@
 includet("IaFMechanics.jl")
+# includet("IaFVisualization.jl")
 
-using .IaFMechanics, Parameters, DifferentialEquations, Plots
+using Parameters, DifferentialEquations, Plots, Statistics
+using .IaFMechanics, .IaFVisualization
 
 # Get parameters
 parameters = IaFParameters{Float64}(Iext=(t -> 6), N=100, w0=1)
 
 u0 = genu0(3, parameters)         # uniformly spaced with some radius
-f = genf(parameters; exponential=false)
 
 tspan = (0, 20)
 
-prob = ODEProblem(f, u0, tspan)
-sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(parameters))
+prob = ODEProblem(genfLeaky(parameters), u0, tspan, parameters)
+sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(parameters.N))
 
-plot(sol)
-# plot(sol, idxs=1)
+display(plot(sol))
+# plot(sol, vars=1, continuity=:right)
+
+plot(sol.t, var.(sol.u))
+
+# png("uplot")
+
+# animate(sol)
