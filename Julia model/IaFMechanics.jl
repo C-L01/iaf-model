@@ -3,13 +3,14 @@ Contains the mechanics needed to numerically solve an integrate-and-fire model.
 """
 module IaFMechanics
 
-export IaFParameters, genu0, genfLeaky, genfExp, gencallback
+export IaFParameters, genu0, genfleaky, genfexp, gencallback
 
-using Parameters, DifferentialEquations#, ParameterizedFunctions
+using Parameters, DataFrames, DifferentialEquations#, ParameterizedFunctions
 
 
 """
 Parameters related to the evolution of the potential of a single neuron, the shape of the network, and neuron interactions.
+Also contains logging of the spikes, so a new one should be created
 """
 @with_kw struct IaFParameters{T<:Real} @deftype T
     # Driving force parameters
@@ -36,6 +37,9 @@ Parameters related to the evolution of the potential of a single neuron, the sha
     N::Int = 100                            #(#) number of neurons
     w0 = 1
     W::Matrix{T} = (w0 / N) * ones(N, N)    # synaptic weights
+
+    # Logging variables
+    spikes::DataFrame = DataFrame(t = T[], cnt = Int[])     # TODO: make cb initialize this? Or recreate this struct everytime
 end
 
 
@@ -45,7 +49,7 @@ Create the initial condition u0 as a uniformly spaced vector of length N.
 function genu0(r::Real, parameters::IaFParameters)::Vector{Float64}
     @unpack V_rest, N = parameters
 
-    return range(V_rest + r, V_rest - r, N)
+    return N > 1 ? range(V_rest + r, V_rest - r, N) : [V_rest]
 
     # TODO:
     # u0 = 2*r*(rand(N,1)-0.5)   # ~Unif[-r,r]
@@ -54,33 +58,31 @@ end
 
 
 # Leaky driving force
-function genfLeaky(p::IaFParameters)
+function genfleaky(p::IaFParameters)
     @unpack tau, V_rest, delta_T, theta_rh, R, Iext = p
 
-    function fLeaky!(du, u, p, t)
+    function fleaky!(du, u, p, t)
         @. du = ( -(u - V_rest) + R * Iext(t) ) / tau
     end
 
-    return fLeaky!
+    return fleaky!
 end
 
 
 # Exponential driving force
-# fExp = @ode_def ExponentialIaF begin
+# fexp = @ode_def ExponentialIaF begin
 #     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t)) / tau
 # end V_rest delta_T theta_rh R tau
 
-function genfExp(p::IaFParameters)
+function genfexp(p::IaFParameters)
     @unpack tau, V_rest, delta_T, theta_rh, R, Iext = p
 
-    function fExp!(du, u, p, t)
+    function fexp!(du, u, p, t)
         @. du = ( -(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t) ) / tau
     end
 
-    return fExp!
+    return fexp!
 end
-
-
 
 
 
@@ -111,7 +113,7 @@ function fire!(integrator, firingNeuron::Int)
         firingNeuron = 0    # keeps this value if there are no more firing neurons
 
         for i = 1:integrator.p.N
-            if !(i in firedNeurons) && integrator.u[i] >= integrator.p.V_F
+            if integrator.u[i] >= integrator.p.V_F && !(i in firedNeurons)
                 firingNeuron = i
                 push!(firedNeurons, firingNeuron)
                 break
@@ -121,8 +123,10 @@ function fire!(integrator, firingNeuron::Int)
 
     # Reset potentials of fired neurons
     integrator.u[firedNeurons] .= integrator.p.V_R
-end
 
+    # Log number of fired neurons
+    push!(integrator.p.spikes, [integrator.t, length(firedNeurons)])
+end
 
 
 """
