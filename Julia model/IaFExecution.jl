@@ -19,8 +19,6 @@ sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(N), dense=false
 println("System solved")
 
 
-
-
 ### Plotting
 
 # plotlyjs()
@@ -40,4 +38,13 @@ plot(pu, pv, pa, layout=(3, 1), plot_title="Metrics for $N coupled neurons", lin
 
 # png("uplot")
 
-# animate(sol)
+numframes = 500
+numbins::Int = (params.V_F - params.V_R)
+
+densityanim = @animate for t in range(tstart, tend, numframes)
+    histogram(sol(t), bins=numbins, normalize=:density,         # TODO: find out if there is a more appropriate normalization, maybe scale by N
+                xlims=(params.V_R, params.V_F), ylims=(0,40), label="t = $(round(t, digits=2))", legend=:topleft)
+end
+
+gif(densityanim, fps=numframes/(tend-tstart))
+# gif(densityanim, "densityanim.avi", fps=numframes/(tend-tstart))
