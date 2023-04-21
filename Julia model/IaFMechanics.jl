@@ -5,12 +5,12 @@ module IaFMechanics
 
 export IaFParameters, genu0, genfleaky, genfexp, gencallback
 
-using Parameters, DataFrames, DifferentialEquations#, ParameterizedFunctions
+using Parameters, DataFrames, DifferentialEquations, LinearAlgebra, SparseArrays#, ParameterizedFunctions
 
 
 """
 Parameters related to the evolution of the potential of a single neuron, the shape of the network, and neuron interactions.
-Also contains logging of the spikes, so a new one should be created
+Also contains logging of the spikes, so new instances should be created.
 """
 @with_kw struct IaFParameters{T<:Real} @deftype T
     # Driving force parameters
@@ -59,13 +59,13 @@ end
 
 # Leaky driving force
 function genfleaky(p::IaFParameters)
-    @unpack tau, V_rest, delta_T, theta_rh, R, Iext = p
+    @unpack tau, V_rest, delta_T, theta_rh, R, Iext, N = p
 
     function fleaky!(du, u, p, t)
         @. du = ( -(u - V_rest) + R * Iext(t) ) / tau
     end
 
-    return fleaky!
+    return ODEFunction(fleaky!, jac_prototype=sparse(I, N, N))
 end
 
 
@@ -75,13 +75,13 @@ end
 # end V_rest delta_T theta_rh R tau
 
 function genfexp(p::IaFParameters)
-    @unpack tau, V_rest, delta_T, theta_rh, R, Iext = p
+    @unpack tau, V_rest, delta_T, theta_rh, R, Iext, N = p
 
     function fexp!(du, u, p, t)
         @. du = ( -(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t) ) / tau
     end
 
-    return fexp!
+    return ODEFunction(fexp!, jac_prototype=sparse(I, N, N))
 end
 
 
