@@ -10,24 +10,15 @@ using Parameters, DataFrames, DifferentialEquations, LinearAlgebra, SparseArrays
 
 """
 Parameters related to the evolution of the potential of a single neuron, the shape of the network, and neuron interactions.
-Also contains logging of the spikes, so new instances should be created.
+Also contains logging of the spikes, so new instances should be created for every new simulation.
 """
 @with_kw struct IaFParameters{T<:Real} @deftype T
     # Driving force parameters
-    tau = 1             #(s) Time constant
-    V_rest = 0          #(V) Resting potential
     delta_T = 0.5       #( ) Sharpness parameter
     theta_rh = 5        #(V) Rheobase threshold
-    R = 1               #(Ω) Resistance
 
     Iext::Function = t -> 0    #(A) External current
     # Iext = t -> exp(t/10)
-
-    # TODO: external pulses should be implemented as an integration event; make sure to tstop at the pulse time
-    # tPulse = 1                     #(s) time of pulse
-    # dt = 1e-2                      #(s) time interval of pulse input
-    # dV = 5.5                         #(V) voltage increase due to pulse
-    # Iext(t) = (dV/dt) * (heaviside(t-tPulse) - heaviside(t-tPulse-dt))
 
     # Reset parameters
     V_F = 5             #(V) Firing threshold
@@ -47,9 +38,9 @@ end
 Create the initial condition u0 as a uniformly spaced vector of length N.
 """
 function genu0(r::Real, parameters::IaFParameters)::Vector{Float64}
-    @unpack V_rest, N = parameters
+    @unpack V_F, N = parameters
 
-    return N > 1 ? range(V_rest + r, V_rest - r, N) : [V_rest]
+    return N > 1 ? range(min(V_F, r), -r, N) : [0]
 
     # TODO:
     # u0 = 2*r*(rand(N,1)-0.5)   # ~Unif[-r,r]
@@ -59,10 +50,10 @@ end
 
 # Leaky driving force
 function genfleaky(p::IaFParameters)
-    @unpack tau, V_rest, delta_T, theta_rh, R, Iext, N = p
+    @unpack Iext, N = p
 
     function fleaky!(du, u, p, t)
-        @. du = ( -(u - V_rest) + R * Iext(t) ) / tau
+        @. du = -u + Iext(t)
     end
 
     return ODEFunction(fleaky!, jac_prototype=sparse(I, N, N))
@@ -75,10 +66,10 @@ end
 # end V_rest delta_T theta_rh R tau
 
 function genfexp(p::IaFParameters)
-    @unpack tau, V_rest, delta_T, theta_rh, R, Iext, N = p
+    @unpack delta_T, theta_rh, Iext, N = p
 
     function fexp!(du, u, p, t)
-        @. du = ( -(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t) ) / tau
+        @. du = -u + delta_T * exp((u - theta_rh) / delta_T) + Iext(t)
     end
 
     return ODEFunction(fexp!, jac_prototype=sparse(I, N, N))
@@ -128,6 +119,12 @@ function fire!(integrator, firingNeuron::Int)
     push!(integrator.p.spikes, [integrator.t, length(firedNeurons)])
 end
 
+
+# TODO: external pulses should be implemented as an integration event; make sure to tstop at the pulse time
+# tPulse = 1                     #(s) time of pulse
+# dt = 1e-2                      #(s) time interval of pulse input
+# dV = 5.5                         #(V) voltage increase due to pulse
+# Iext(t) = (dV/dt) * (heaviside(t-tPulse) - heaviside(t-tPulse-dt))
 
 """
 Create the VectorContinuousCallback used by the ODE solver to check for and handle spikes.
