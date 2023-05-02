@@ -3,9 +3,9 @@ Contains the mechanics needed to numerically solve an integrate-and-fire model.
 """
 module IaFMechanics
 
-export IaFParameters, genu0, genfleaky, genfexp, gencallback
+export IaFParameters, solveiaf, genu0
 
-using Parameters, DataFrames, DifferentialEquations, LinearAlgebra, SparseArrays#, ParameterizedFunctions
+using Parameters, DataFrames, Distributions, DifferentialEquations, LinearAlgebra, SparseArrays#, ParameterizedFunctions
 
 
 """
@@ -13,44 +13,61 @@ Parameters related to the evolution of the potential of a single neuron, the sha
 Also contains logging of the spikes, so new instances should be created for every new simulation.
 """
 @with_kw struct IaFParameters{T<:Real} @deftype T
-    # Driving force parameters
-    delta_T = 0.5       #( ) Sharpness parameter
-    theta_rh = 5        #(V) Rheobase threshold
+    # Driving force type
+    leaky::Bool = true                      # Whether to use leaky IaF (alternative is exponential)
 
-    Iext::Function = t -> 0    #(A) External current
-    # Iext = t -> exp(t/10)
+    # Driving force parameters
+    delta_T = 0.5                           #( ) Sharpness parameter
+    theta_rh = 5                            #(V) Rheobase threshold
+
+    Iext::Function = t -> 0                 #(A) External current
 
     # Reset parameters
-    V_F = 5             #(V) Firing threshold
-    V_R = -10           #(V) Potential after reset
+    V_F = 5                                 #(V) Firing threshold
+    V_R = -10                               #(V) Potential after reset
 
     # Network parameters
-    N::Int = 100                            #(#) number of neurons
+    N::Int = 100                            #(#) Number of neurons
     w0 = 1
-    W::Matrix{T} = (w0 / N) * ones(N, N)    # synaptic weights
+    W::Matrix{T} = (w0 / N) * ones(N, N)    # Synaptic weights
+
+    # Initial conditions
+    r = 3                                   #(V) Potential radius around 0
+    u0distr::Symbol = :range                # Type of distribution for u0
+
+    # Termination
+    tend = 30                               #(s) End time of simulation (NOTE: tstart is normalized to 0)
 
     # Logging variables
-    spikes::DataFrame = DataFrame(t = T[], cnt = Int[])     # TODO: make cb initialize this? Or recreate this struct everytime
+    spikes::DataFrame = DataFrame(t = T[], cnt = Int[])
 end
 
 
 """
 Create the initial condition u0 as a uniformly spaced vector of length N.
 """
-function genu0(r::Real, parameters::IaFParameters)::Vector{Float64}
-    @unpack V_F, N = parameters
+function genu0(para::IaFParameters)::Vector{Float64}
+    @unpack r, u0distr, V_F, N = para
 
-    return N > 1 ? range(min(V_F, r), -r, N) : [0]
+    @assert r >= 0
 
-    # TODO:
-    # u0 = 2*r*(rand(N,1)-0.5)   # ~Unif[-r,r]
-    # u0 = r*randn(N,1)          # ~N(0,r^2)
+    if u0distr == :range                                            # deterministic uniform
+        return N > 1 ? range(min((N-1)/N * V_F, r), -r, N) : [0]
+    elseif u0distr == :Uniform                                      #~Unif[-r,r]
+        d = Uniform(-r,r)
+        return rand(d, N)
+    elseif u0distr == :Normal                                       #~N(0,r^2) (censored)
+        d = censored(Normal(0,r), upper=(N-1)/N * V_F)
+        return rand(d, N)
+    else
+        error("Invalid type of u0 distribution: $u0distr")
+    end
 end
 
 
 # Leaky driving force
-function genfleaky(p::IaFParameters)
-    @unpack Iext, N = p
+function genfleaky(para::IaFParameters)
+    @unpack Iext, N = para
 
     function fleaky!(du, u, p, t)
         @. du = -u + Iext(t)
@@ -65,8 +82,8 @@ end
 #     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t)) / tau
 # end V_rest delta_T theta_rh R tau
 
-function genfexp(p::IaFParameters)
-    @unpack delta_T, theta_rh, Iext, N = p
+function genfexp(para::IaFParameters)
+    @unpack delta_T, theta_rh, Iext, N = para
 
     function fexp!(du, u, p, t)
         @. du = -u + delta_T * exp((u - theta_rh) / delta_T) + Iext(t)
@@ -74,7 +91,6 @@ function genfexp(p::IaFParameters)
 
     return ODEFunction(fexp!, jac_prototype=sparse(I, N, N))
 end
-
 
 
 
@@ -135,14 +151,22 @@ function gencallback(N::Int)::VectorContinuousCallback
 end
 
 
-# TODO: this logic currently does not warrant its own function
-# function solveiaf(f::Function, u0::Vector{Float64}, tStart::Real, tEnd::Real, options::NamedTuple)
-#     tspan = (tStart, tEnd)
 
-#     prob = ODEProblem(f, u0, tspan)
-#     sol = solve(prob; options...)
+"""
+Wrapper for generating all input for the solver and subsequently solving the integrate-and-fire model for given parameters.
+"""
+function solveiaf(para::IaFParameters, u0::Vector{Float64})
+    @unpack leaky, tend, N, spikes = para
 
-#     return sol
-# end
+    empty!(spikes)      # clear data from a possible previous run
+
+    f = leaky ? genfleaky(para) : genfexp(para)
+    tspan = (0, tend)
+
+    prob = ODEProblem(f, u0, tspan, para)
+    sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(N), dense=false)
+
+    return sol
+end
 
 end
