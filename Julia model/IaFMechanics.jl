@@ -49,7 +49,7 @@ Create the initial condition u0 as a uniformly spaced vector of length N.
 function genu0(para::IaFParameters)::Vector{Float64}
     @unpack r, u0distr, V_F, N = para
 
-    @assert r >= 0
+    @assert r >= 0 "Radius must be nonnegative."
 
     if u0distr == :range                                            # deterministic uniform
         return N > 1 ? range(min((N-1)/N * V_F, r), -r, N) : [0]
@@ -65,31 +65,26 @@ function genu0(para::IaFParameters)::Vector{Float64}
 end
 
 
-# Leaky driving force
-function genfleaky(para::IaFParameters)
-    @unpack Iext, N = para
+"""
+Generate the driving force function f. Takes into account the sparsity pattern of the Jacobian.
+"""
+function genf(para::IaFParameters)
+    @unpack leaky, delta_T, theta_rh, Iext, N = para
 
     function fleaky!(du, u, p, t)
         @. du = -u + Iext(t)
     end
 
-    return ODEFunction(fleaky!, jac_prototype=sparse(I, N, N))
-end
-
-
-# Exponential driving force
-# fexp = @ode_def ExponentialIaF begin
-#     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t)) / tau
-# end V_rest delta_T theta_rh R tau
-
-function genfexp(para::IaFParameters)
-    @unpack delta_T, theta_rh, Iext, N = para
+    # Exponential driving force
+    # fexp = @ode_def ExponentialIaF begin
+    #     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t)) / tau
+    # end V_rest delta_T theta_rh R tau
 
     function fexp!(du, u, p, t)
         @. du = -u + delta_T * exp((u - theta_rh) / delta_T) + Iext(t)
     end
 
-    return ODEFunction(fexp!, jac_prototype=sparse(I, N, N))
+    return ODEFunction(leaky ? fleaky! : fexp!, jac_prototype=sparse(I, N, N))
 end
 
 
@@ -107,7 +102,7 @@ Perform post-spike potential updates, where firingNeuron is the neuron that fire
 """
 function fire!(integrator, firingNeuron::Int)
     
-    firedNeurons::Vector{Int} = [firingNeuron]
+    firedNeurons::Vector{Int} = [firingNeuron]                # track which neurons have already fired at this moment in time
 
     while firingNeuron != 0
 
@@ -117,7 +112,7 @@ function fire!(integrator, firingNeuron::Int)
         # The arrival of the spike might have caused new neurons to fire
         # Order of processing spikes shouldn't matter (because we reset at end), so we do a linear search and take the first one
 
-        firingNeuron = 0    # keeps this value if there are no more firing neurons
+        firingNeuron = 0    # placeholder value for if there are no more firing neurons
 
         for i = 1:integrator.p.N
             if integrator.u[i] >= integrator.p.V_F && !(i in firedNeurons)
@@ -136,7 +131,7 @@ function fire!(integrator, firingNeuron::Int)
 end
 
 
-# TODO: external pulses should be implemented as an integration event; make sure to tstop at the pulse time
+# TODO: external pulses could be implemented as an integration event; make sure to tstop at the pulse time
 # tPulse = 1                     #(s) time of pulse
 # dt = 1e-2                      #(s) time interval of pulse input
 # dV = 5.5                         #(V) voltage increase due to pulse
@@ -158,9 +153,9 @@ Wrapper for generating all input for the solver and subsequently solving the int
 function solveiaf(para::IaFParameters, u0::Vector{Float64})
     @unpack leaky, tend, N, spikes = para
 
-    empty!(spikes)      # clear data from a possible previous run
+    empty!(spikes)      # clear spike data from a possible previous run
 
-    f = leaky ? genfleaky(para) : genfexp(para)
+    f = genf(para)
     tspan = (0, tend)
 
     prob = ODEProblem(f, u0, tspan, para)
