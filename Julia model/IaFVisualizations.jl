@@ -96,12 +96,16 @@ function torusanim(sol::ODESolution, para; fps::Int = 10, save::Bool = false)
     torusx = cos.(τ)
     torusy = sin.(τ)
 
+    # Reset location
+    resetx, resety = [0], [1]
+
     torusanim = @animate for t in timesteps
         # torusplot(sol(t))
         potentialangles = 2π * (sol(t) .- V_R) / (V_F - V_R) .+ π/2
-        scatter(cos.(potentialangles), sin.(potentialangles), mc=:red, ms=7, ma=0.3,
+        scatter(cos.(potentialangles), sin.(potentialangles), mc=:red, ms=8, ma=0.3, framestyle=:none,
                 xlims=(-1.5,1.5), ylims=(-1.1,1.1), title="Potential torus at t = $(@sprintf("%.2f", t))")
         plot!(torusx, torusy, lc=:black)
+        scatter!(resetx, resety, shape=:vline, mc=:black, ms=12)
     end
 
     if save
