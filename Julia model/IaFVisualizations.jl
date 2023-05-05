@@ -5,7 +5,7 @@ module IaFVisualizations
 
 # include("IaFMechanics.jl")
 
-export uvaplot, udensityanim, torusanim
+export uvaplot, udensityanim, utorusanim, uspatialanim
 
 using Parameters, DifferentialEquations, Plots, Statistics, LaTeXStrings, Printf
 # using .IaFMechanics: IaFParameters
@@ -18,8 +18,8 @@ default(legend=false)
 Generate file suffix used for saving plots. Assumes Iext is constant.
 """
 function genfilesuffix(para)
-    @unpack leaky, N, w0, Iext, tend, r, u0distr = para
-    return "$(leaky ? "leaky" : "exp");N=$N;w0=$w0;I0=$(Iext(0));r=$r;u0distr=$u0distr;tend=$tend"
+    @unpack leaky, N, w0, Iext, tend, r, u0distr, wdistr = para
+    return "$(leaky ? "leaky" : "exp");N=$N;w0=$w0;I0=$(Iext(0));u0distr=$u0distr;r=$r;wdistr=$wdistr;tend=$tend"
     # $(Wbal ? "Wbal;" : "")
 end
 
@@ -53,7 +53,7 @@ end
 """
 Create an animation of the potential density evolution.
 """
-function udensityanim(sol::ODESolution, para; fps::Int = 10, binsize::Float64 = 0.5, save::Bool = false)
+function udensityanim(sol::ODESolution, para; fps::Int = 5, binsize::Float64 = 0.5, save::Bool = false)
     @unpack tend, V_R, V_F = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
@@ -76,14 +76,14 @@ end
 
 
 """
-Create an animation of the evolution of the potentials mapped onto a torus.
+Create an animation of the evolution of the potentials mapped onto a torus from V_R to V_F.
 """
-function torusanim(sol::ODESolution, para; fps::Int = 10, save::Bool = false)
-    @unpack V_R, V_F = para
-    tstart, tend = sol.t[1], sol.t[end]
+function utorusanim(sol::ODESolution, para; fps::Int = 5, save::Bool = false)
+    @unpack V_R, V_F, tend = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
 
+    # Potential TODO
     # @userplot TorusPlot
     # @recipe function g(tp::TorusPlot)
     #     u = tp.args
@@ -110,10 +110,37 @@ function torusanim(sol::ODESolution, para; fps::Int = 10, save::Bool = false)
 
     if save
         filesuffix = genfilesuffix(para)
-        gif(torusanim, "animations/torus_" * filesuffix * ".avi", fps=fps/4)
+        gif(torusanim, "animations/utorus_" * filesuffix * ".avi", fps=fps/4)
     end
 
     display(gif(torusanim, fps=fps))
+end
+
+
+"""
+Create an animation of the evolution of the potentials visualized per location.
+"""
+function uspatialanim(sol::ODESolution, para; fps::Int = 10, save::Bool = false)
+    @unpack tend, X, spikes = para
+
+    timesteps::Vector{Float64} = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
+    append!(timesteps, spikes.t)                                            # add spike times to ensure those are not stepped over
+    sort!(timesteps)
+
+    uspatialanim = @animate for t in timesteps
+        scatter(X, marker_z=sol(t), color=cgrad(:blues, rev=true),
+                    xlims=(-0.1,1.1), ylims=(-0.1,1.1), title="Spatial potentials at t = $(@sprintf("%.2f", t))")
+        if t in spikes.t
+            scatter!(X[spikes[findfirst(==(t), spikes.t), :neurons]], mc=:red, ms=8)
+        end
+    end
+
+    if save
+        filesuffix = genfilesuffix(para)
+        gif(uspatialanim, "animations/uspatial_" * filesuffix * ".avi", fps=fps)
+    end
+
+    display(gif(uspatialanim, fps=fps))
 end
 
 end

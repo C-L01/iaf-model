@@ -1,20 +1,23 @@
 includet("IaFMechanics.jl")
 includet("IaFVisualizations.jl")
 
-using Parameters, DifferentialEquations, Random#, Plots, Statistics, LaTeXStrings, Printf
+using Parameters, DifferentialEquations, Random#, Plots#, Statistics, LaTeXStrings, Printf
 using .IaFMechanics, .IaFVisualizations
 
 
 ### Parameter setting
 
-Random.seed!(0)     # in case of random u0
+Random.seed!(0)     # for replicability
 
 para = IaFParameters{Float64}(
     leaky = true,
-    N = 50,
+    N = 100,
+    tend = 30,
+    wdistr = :gaussian,
     w0 = 1,
-    tend = 50,
-    u0distr = :Uniform,
+    sig1 = 0.2,
+    sig2 = 0.5,
+    u0distr = :uniform,
     r = 10
     )
 
@@ -22,7 +25,7 @@ para = IaFParameters{Float64}(
 
 para = IaFParameters(para,
     Iext = para.leaky ? (t -> 6) : (t -> 4.75),       # sin(t), exp(t/10)
-    V_F = para.leaky ? 5 : 7
+    V_F = para.leaky ? 5 : 7,
     )
 
 # Wbal = false
@@ -32,7 +35,7 @@ para = IaFParameters(para,
 # end
 
 u0 = genu0(para)      # not wrapped in solveiaf for now, maybe later
-
+updateW(para)         # not wrapped in solveiaf for now, maybe later
 
 
 ### Solving
@@ -50,7 +53,9 @@ uvaplot(sol, para; save=false)
 
 ### Animating
 
-fps = 5
+fps = 10
 
 udensityanim(sol, para, fps=fps; save=false)
-torusanim(sol, para, fps=fps; save=false)
+utorusanim(sol, para, fps=fps; save=false)
+uspatialanim(sol, para, fps=fps; save=false)
+

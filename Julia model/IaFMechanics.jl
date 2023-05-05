@@ -3,7 +3,7 @@ Contains the mechanics needed to numerically solve an integrate-and-fire model.
 """
 module IaFMechanics
 
-export IaFParameters, solveiaf, genu0
+export IaFParameters, solveiaf, genu0, updateW
 
 using Parameters, DataFrames, Distributions, DifferentialEquations, LinearAlgebra, SparseArrays#, ParameterizedFunctions
 
@@ -16,7 +16,7 @@ Also contains logging of the spikes, so new instances should be created for ever
     # Driving force type
     leaky::Bool = true                      # Whether to use leaky IaF (alternative is exponential)
 
-    # Driving force parameters
+    # Driving force parameters (only relevant for exponential)
     delta_T = 0.5                           #( ) Sharpness parameter
     theta_rh = 5                            #(V) Rheobase threshold
 
@@ -27,24 +27,66 @@ Also contains logging of the spikes, so new instances should be created for ever
     V_R = -10                               #(V) Potential after reset
 
     # Network parameters
-    N::Int = 100                            #(#) Number of neurons
-    w0 = 1
-    W::Matrix{T} = (w0 / N) * ones(N, N)    # Synaptic weights
+    N::Int; @assert N >= 1                              #(#) Number of neurons
+    X::Vector{Tuple{T,T}} = tuple.(rand(N), rand(N))    #(x) Coordinates of neurons (if empty, model is non-spatial)
+    wdistr::Symbol = :constant                          # Type of coupling/weight function
+    w0 = 1                                              # (Maximum) synaptic weight
+    sig1 = 0.2                                          # Standard deviation for Gaussian, and first parameter for Mexican-hat
+    sig2 = 0.5                                          # Second Mexican-hat parameter
+    W::Matrix{T} = zeros(N,N)                           # Synaptic weights
 
     # Initial conditions
-    r = 3                                   #(V) Potential radius around 0
+    r = 3; @assert r >= 0                   #(V) Potential radius around 0
     u0distr::Symbol = :range                # Type of distribution for u0
 
     # Termination
     tend = 30                               #(s) End time of simulation (NOTE: tstart is normalized to 0)
 
     # Logging variables
-    spikes::DataFrame = DataFrame(t = T[], cnt = Int[])
+    spikes::DataFrame = DataFrame(t = T[], neurons = Vector{Int}[], cnt = Int[])
 end
 
 
 """
-Create the initial condition u0 as a uniformly spaced vector of length N.
+Update the weight matrix W, i.e. matrix of w_ij's. Note that in all cases the values on the diagonal do not matter.
+Three options for weight distribution:
+    - constant
+    - gaussian
+    - mexican
+"""
+function updateW(para::IaFParameters)
+    @unpack W, w0, wdistr, sig1, sig2, X, N = para
+
+    if wdistr == :constant                                         # standard full-connectivity
+        w = x -> w0
+
+    elseif wdistr == :gaussian                                     # Gaussian based on distance
+        w = x -> w0/sqrt(2π * sig1) * exp(-x^2/(2sig1^2))        
+        
+    elseif wdistr == :mexican                                      # "Mexican-hat" based on distance
+        @assert sig2 > sig1
+        w = x -> w0 * (sig2 * exp(-x^2/(2sig1^2)) - sig1 * exp(-x^2/(2sig2^2))) / (sig2 - sig1)
+
+    else
+        error("Invalid type of weight distribution: $wdistr")
+    end
+
+    for i = 1:N
+        for j = (i+1):N
+            W[i,j] = 1/N * w(norm(X[i] .- X[j]))
+            W[j,i] = W[i,j]     # because of symmetry of the metric
+        end
+    end
+end
+
+
+
+"""
+Create the initial condition u0, i.e. a potential vector of length N.
+Three options for u0 distribution:
+    - range
+    - uniform
+    - normal
 """
 function genu0(para::IaFParameters)::Vector{Float64}
     @unpack r, u0distr, V_F, N = para
@@ -52,19 +94,24 @@ function genu0(para::IaFParameters)::Vector{Float64}
     @assert r >= 0 "Radius must be nonnegative."
 
     if u0distr == :range                                            # deterministic uniform
-        return N > 1 ? range(min((N-1)/N * V_F, r), -r, N) : [0]
-    elseif u0distr == :Uniform                                      #~Unif[-r,r]
-        d = Uniform(-r,r)
-        return rand(d, N)
-    elseif u0distr == :Normal                                       #~N(0,r^2) (censored)
-        d = censored(Normal(0,r), upper=(N-1)/N * V_F)
-        return rand(d, N)
+        u0 = N > 1 ? range(min(0.99 * V_F, r), -r, N) : [0]
+
+    elseif u0distr == :uniform                                      #~Unif[-r,r]
+        d = Uniform(-r, min(0.99 * V_F, r))
+        u0 = rand(d, N)
+
+    elseif u0distr == :normal                                       #~N(0,r^2) (censored)
+        d = censored(Normal(0,r), upper=0.99 * V_F)
+        u0 = rand(d, N)
+
     else
         error("Invalid type of u0 distribution: $u0distr")
     end
+
+    return u0
 end
 
-
+# TODO: add spatial dependence to Iext
 """
 Generate the driving force function f. Takes into account the sparsity pattern of the Jacobian.
 """
@@ -102,7 +149,7 @@ Perform post-spike potential updates, where firingNeuron is the neuron that fire
 """
 function fire!(integrator, firingNeuron::Int)
     
-    firedNeurons::Vector{Int} = [firingNeuron]                # track which neurons have already fired at this moment in time
+    firedNeurons::Vector{Int} = [firingNeuron]          # track indices of neurons that have already fired at this moment in time
 
     while firingNeuron != 0
 
@@ -127,7 +174,7 @@ function fire!(integrator, firingNeuron::Int)
     integrator.u[firedNeurons] .= integrator.p.V_R
 
     # Log number of fired neurons
-    push!(integrator.p.spikes, [integrator.t, length(firedNeurons)])
+    push!(integrator.p.spikes, [integrator.t, firedNeurons, length(firedNeurons)])
 end
 
 
