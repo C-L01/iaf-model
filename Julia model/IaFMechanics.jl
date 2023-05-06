@@ -43,7 +43,7 @@ Also contains logging of the spikes, so new instances should be created for ever
     tend = 30                               #(s) End time of simulation (NOTE: tstart is normalized to 0)
 
     # Logging variables
-    spikes::DataFrame = DataFrame(t = T[], neurons = Vector{Int}[], cnt = Int[])
+    spikes::DataFrame = DataFrame(t = T[], neurons = Vector{Int}[])
 end
 
 
@@ -174,7 +174,7 @@ function fire!(integrator, firingNeuron::Int)
     integrator.u[firedNeurons] .= integrator.p.V_R
 
     # Log number of fired neurons
-    push!(integrator.p.spikes, [integrator.t, firedNeurons, length(firedNeurons)])
+    push!(integrator.p.spikes, [integrator.t, firedNeurons])
 end
 
 

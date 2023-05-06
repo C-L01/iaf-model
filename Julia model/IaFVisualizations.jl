@@ -35,7 +35,7 @@ function uvaplot(sol::ODESolution, para; activitybinsize::Float64 = 0.2, save::B
 
     pv = plot(sol.t, var.(sol.u), title="Variance", ylabel=L"Var$(t)$ (V$^2$)")
 
-    pa = histogram(para.spikes.t, bins=0:activitybinsize:tend, weights=1/N*para.spikes.cnt, normalize=:density,
+    pa = histogram(para.spikes.t, bins=0:activitybinsize:tend, weights=1/N*length.(para.spikes.neurons), normalize=:density,
                     title="Activity", xlabel=L"$t$ (s)", ylabel=L"$A(t)$ (#/s)")
 
     # Stack the plots
