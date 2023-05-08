@@ -68,7 +68,7 @@ function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5,
 
     if save
         filesuffix = genfilesuffix(para)
-        gif(udensityanim, "animations/udensity_" * filesuffix * ".avi", fps=fps)
+        gif(udensityanim, "animations/udensity_" * filesuffix * ".avi", fps=playspeed*fps)
     end
 
     display(gif(udensityanim, fps=playspeed*fps))
@@ -110,7 +110,7 @@ function utorusanim(sol::ODESolution, para; fps::Int = 5, playspeed::Real = 1, s
 
     if save
         filesuffix = genfilesuffix(para)
-        gif(torusanim, "animations/utorus_" * filesuffix * ".avi", fps=fps/4)
+        gif(torusanim, "animations/utorus_" * filesuffix * ".avi", fps=playspeed*fps)
     end
 
     display(gif(torusanim, fps=playspeed*fps))
@@ -123,9 +123,17 @@ Create an animation of the evolution of the potentials visualized per location.
 function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1, save::Bool = false)
     @unpack tend, X, spikes = para
 
-    timesteps::Vector{Float64} = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
-    append!(timesteps, spikes.t)                                            # add spike times to ensure those are not stepped over
-    sort!(timesteps)
+    timesteps::Vector{Float64} = copy(spikes.t)                             # stop at all spikes
+    
+    numtargetframes = round(Int, fps*tend)
+    if numtargetframes > length(timesteps)
+        additionaltimesteps::Vector{Float64} = range(0, tend, numtargetframes - length(timesteps) + 1)
+        append!(timesteps, additionaltimesteps)
+        sort!(timesteps)
+    else
+        realfps = round(Int, length(timesteps)/tend)
+        println("Spikes alone account for all frames, real fps is $realfps.")
+    end
 
     uspatialanim = @animate for t in timesteps
         scatter(X, marker_z=sol(t), color=cgrad(:blues, rev=false),
@@ -137,10 +145,10 @@ function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1
 
     if save
         filesuffix = genfilesuffix(para)
-        gif(uspatialanim, "animations/uspatial_" * filesuffix * ".avi", fps=fps)
+        gif(uspatialanim, "animations/uspatial_" * filesuffix * ".avi", fps=playspeed*realfps)
     end
 
-    display(gif(uspatialanim, fps=playspeed*fps))
+    display(gif(uspatialanim, fps=playspeed*realfps))
 end
 
 end
