@@ -55,7 +55,7 @@ uvaplot(sol, para; save=false)
 
 fps = 10
 
-udensityanim(sol, para, fps=fps; save=false)
-utorusanim(sol, para, fps=fps; save=false)
-uspatialanim(sol, para, fps=fps; save=false)
+# udensityanim(sol, para; fps=fps, save=false)
+utorusanim(sol, para; fps=fps, playspeed=1/3, save=false)
+# uspatialanim(sol, para; fps=fps, save=false)
 

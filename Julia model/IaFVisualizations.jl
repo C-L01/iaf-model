@@ -53,7 +53,7 @@ end
 """
 Create an animation of the potential density evolution.
 """
-function udensityanim(sol::ODESolution, para; fps::Int = 5, binsize::Float64 = 0.5, save::Bool = false)
+function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5, playspeed::Real = 1, save::Bool = false)
     @unpack tend, V_R, V_F = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
@@ -71,14 +71,14 @@ function udensityanim(sol::ODESolution, para; fps::Int = 5, binsize::Float64 = 0
         gif(udensityanim, "animations/udensity_" * filesuffix * ".avi", fps=fps)
     end
 
-    display(gif(udensityanim, fps=fps))
+    display(gif(udensityanim, fps=playspeed*fps))
 end
 
 
 """
 Create an animation of the evolution of the potentials mapped onto a torus from V_R to V_F.
 """
-function utorusanim(sol::ODESolution, para; fps::Int = 5, save::Bool = false)
+function utorusanim(sol::ODESolution, para; fps::Int = 5, playspeed::Real = 1, save::Bool = false)
     @unpack V_R, V_F, tend = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
@@ -113,14 +113,14 @@ function utorusanim(sol::ODESolution, para; fps::Int = 5, save::Bool = false)
         gif(torusanim, "animations/utorus_" * filesuffix * ".avi", fps=fps/4)
     end
 
-    display(gif(torusanim, fps=fps))
+    display(gif(torusanim, fps=playspeed*fps))
 end
 
 
 """
 Create an animation of the evolution of the potentials visualized per location.
 """
-function uspatialanim(sol::ODESolution, para; fps::Int = 10, save::Bool = false)
+function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1, save::Bool = false)
     @unpack tend, X, spikes = para
 
     timesteps::Vector{Float64} = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
@@ -140,7 +140,7 @@ function uspatialanim(sol::ODESolution, para; fps::Int = 10, save::Bool = false)
         gif(uspatialanim, "animations/uspatial_" * filesuffix * ".avi", fps=fps)
     end
 
-    display(gif(uspatialanim, fps=fps))
+    display(gif(uspatialanim, fps=playspeed*fps))
 end
 
 end
