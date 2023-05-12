@@ -130,6 +130,7 @@ function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1
         additionaltimesteps::Vector{Float64} = range(0, tend, numtargetframes - length(timesteps) + 1)
         append!(timesteps, additionaltimesteps)
         sort!(timesteps)
+        realfps = fps
     else
         realfps = round(Int, length(timesteps)/tend)
         println("Spikes alone account for all frames, real fps is $realfps.")
