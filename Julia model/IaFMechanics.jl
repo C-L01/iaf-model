@@ -101,7 +101,7 @@ function genu0(para::IaFParameters)::Vector{Float64}
         u0 = rand(d, N)
 
     elseif u0distr == :normal                                       #~N(0,r^2) (censored)
-        d = censored(Normal(0,r), upper=0.99 * V_F)
+        d = truncated(Normal(0,r), upper=0.99 * V_F)
         u0 = rand(d, N)
 
     else
