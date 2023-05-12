@@ -87,6 +87,7 @@ Three options for u0 distribution:
     - range
     - uniform
     - normal
+Always returns a sorted u0, from high to low.
 """
 function genu0(para::IaFParameters)::Vector{Float64}
     @unpack r, u0distr, V_F, N = para
@@ -98,11 +99,11 @@ function genu0(para::IaFParameters)::Vector{Float64}
 
     elseif u0distr == :uniform                                      #~Unif[-r,r]
         d = Uniform(-r, min(0.99 * V_F, r))
-        u0 = rand(d, N)
+        u0 = sort(rand(d, N), rev=true)
 
     elseif u0distr == :normal                                       #~N(0,r^2) (censored)
         d = truncated(Normal(0,r), upper=0.99 * V_F)
-        u0 = rand(d, N)
+        u0 = sort(rand(d, N), rev=true)
 
     else
         error("Invalid type of u0 distribution: $u0distr")
@@ -146,6 +147,7 @@ end
 
 """
 Perform post-spike potential updates, where firingNeuron is the neuron that fires (first). Used for Callback.
+Difference with main branch: neurons that have fired can their potential changed from V_R by firings they triggered.
 """
 function fire!(integrator, firingNeuron::Int)
     
@@ -156,11 +158,16 @@ function fire!(integrator, firingNeuron::Int)
         # Increment potential of all neurons based on weights
         integrator.u .+= integrator.p.W[:, firingNeuron]      # TODO: only doing this for unfired neurons might be better (or not)
 
+        # Reset potential of firing neuron (NOTE: it can be changed later by new firing neurons)
+        integrator.u[firingNeuron] = integrator.p.V_R
+
         # The arrival of the spike might have caused new neurons to fire
-        # Order of processing spikes shouldn't matter (because we reset at end), so we do a linear search and take the first one
 
         firingNeuron = 0    # placeholder value for if there are no more firing neurons
 
+        # Note that now the order of firing matters
+        # It would make the most sense to choose the neuron with the highest potential to fire first
+        # Thus, this logic assumes that u0 is sorted
         for i = 1:integrator.p.N
             if integrator.u[i] >= integrator.p.V_F && !(i in firedNeurons)
                 firingNeuron = i
@@ -169,9 +176,6 @@ function fire!(integrator, firingNeuron::Int)
             end
         end
     end
-
-    # Reset potentials of fired neurons
-    integrator.u[firedNeurons] .= integrator.p.V_R
 
     # Log number of fired neurons
     push!(integrator.p.spikes, [integrator.t, firedNeurons])
