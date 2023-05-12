@@ -11,8 +11,8 @@ Random.seed!(0)     # for replicability
 
 para = IaFParameters{Float64}(
     leaky = true,
-    N = 100,
-    tend = 50,
+    N = 50,
+    tend = 70,
     wdistr = :constant,
     w0 = 1,
     sig1 = 0.2,
@@ -49,7 +49,7 @@ println("System solved")
 
 ### Plotting
 
-save = false
+save = true
 
 uvaplot(sol, para; save=save)
 
@@ -58,7 +58,6 @@ uvaplot(sol, para; save=save)
 
 fps = 10
 
-udensityanim(sol, para; fps=fps, playspeed=2, save=save)
-utorusanim(sol, para; fps=fps, playspeed=1, save=save)
-uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
-
+# udensityanim(sol, para; fps=fps, playspeed=2, save=save)
+utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
+# uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
