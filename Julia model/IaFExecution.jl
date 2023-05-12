@@ -12,13 +12,13 @@ Random.seed!(0)     # for replicability
 para = IaFParameters{Float64}(
     leaky = true,
     N = 100,
-    tend = 30,
-    wdistr = :gaussian,
+    tend = 50,
+    wdistr = :constant,
     w0 = 1,
     sig1 = 0.2,
     sig2 = 0.5,
     u0distr = :uniform,
-    r = 10
+    r = 5
     )
 
 # Update parameters that (usually) depend on other parameters
@@ -35,6 +35,7 @@ para = IaFParameters(para,
 # end
 
 u0 = genu0(para)      # not wrapped in solveiaf for now, maybe later
+# u0 = [3, 2, -5.5, -9]
 updateW(para)         # not wrapped in solveiaf for now, maybe later
 
 
@@ -48,14 +49,16 @@ println("System solved")
 
 ### Plotting
 
-uvaplot(sol, para; save=false)
+save = false
+
+uvaplot(sol, para; save=save)
 
 
 ### Animating
 
 fps = 10
 
-# udensityanim(sol, para; fps=fps, save=false)
-utorusanim(sol, para; fps=fps, playspeed=1/3, save=false)
-# uspatialanim(sol, para; fps=fps, save=false)
+udensityanim(sol, para; fps=fps, playspeed=2, save=save)
+utorusanim(sol, para; fps=fps, playspeed=1, save=save)
+uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
 
