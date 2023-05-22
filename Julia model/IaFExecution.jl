@@ -11,8 +11,8 @@ Random.seed!(0)     # for replicability
 
 para = IaFParameters{Float64}(
     leaky = true,
-    N = 50,
-    tend = 70,
+    N = 100,
+    tend = 30,
     wdistr = :constant,
     w0 = 1,
     sig1 = 0.2,
@@ -35,7 +35,7 @@ para = IaFParameters(para,
 # end
 
 u0 = genu0(para)      # not wrapped in solveiaf for now, maybe later
-# u0 = [3, 2, -5.5, -9]
+# u0 = [3.8, 1.5, 1, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]     # somewhat pathological counter-syncing example
 updateW(para)         # not wrapped in solveiaf for now, maybe later
 
 
@@ -49,7 +49,7 @@ println("System solved")
 
 ### Plotting
 
-save = true
+save = false
 
 uvaplot(sol, para; save=save)
 
@@ -59,5 +59,5 @@ uvaplot(sol, para; save=save)
 fps = 10
 
 # udensityanim(sol, para; fps=fps, playspeed=2, save=save)
-utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
+# utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
 # uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
