@@ -87,6 +87,7 @@ Three options for u0 distribution:
     - range
     - uniform
     - normal
+Always returns a sorted u0, from high to low.
 """
 function genu0(para::IaFParameters)::Vector{Float64}
     @unpack r, u0distr, V_F, N = para
@@ -98,11 +99,11 @@ function genu0(para::IaFParameters)::Vector{Float64}
 
     elseif u0distr == :uniform                                      #~Unif[-r,r]
         d = Uniform(-r, min(0.99 * V_F, r))
-        u0 = rand(d, N)
+        u0 = sort(rand(d, N), rev=true)
 
     elseif u0distr == :normal                                       #~N(0,r^2) (censored)
         d = truncated(Normal(0,r), upper=0.99 * V_F)
-        u0 = rand(d, N)
+        u0 = sort(rand(d, N), rev=true)
 
     else
         error("Invalid type of u0 distribution: $u0distr")
@@ -145,36 +146,56 @@ end
 
 
 """
-Perform post-spike potential updates, where firingNeuron is the neuron that fires (first). Used for Callback.
-"""
-function fire!(integrator, firingNeuron::Int)
-    
-    firedNeurons::Vector{Int} = [firingNeuron]          # track indices of neurons that have already fired at this moment in time
+Perform post-spike potential updates, where firingneuron is the neuron that fires (first). Used for Callback.
+Difference with main branch: neurons that have fired can their potential changed from V_R by firings they triggered.
 
-    while firingNeuron != 0
+Assumes that the firingneuron it is passed has the highest potential of all neurons (could be tied though).
+Assumes that weights are sufficiently small such that potentials will not be elevated from V_R to V_F by other firings alone.
+"""
+function fire!(integrator, firingneuron::Int)
+    
+    # Search for neurons that have exactly the same potential as the firingneuron (they should also fire)
+    firingneurons::Vector{Int} = findall(u -> u == integrator.u[firingneuron], integrator.u)
+
+    firedneurons::Vector{Int} = []    # to track neurons that have already fired (at this moment in time)
+
+    while !isempty(firingneurons)
+
+        # Print if there are more then one firingneurons, as this is exceptional
+        # TODO: if this never happens, maybe optimize by removing the findalls
+        if length(firingneurons) > 1
+            println("Neurons $firingneurons fired *exactly* at the same fire iteration")
+        end
 
         # Increment potential of all neurons based on weights
-        integrator.u .+= integrator.p.W[:, firingNeuron]      # TODO: only doing this for unfired neurons might be better (or not)
+        integrator.u .+= integrator.p.W[:, firingneurons]       # TODO: could exclude firingneurons here because of reset
 
-        # The arrival of the spike might have caused new neurons to fire
-        # Order of processing spikes shouldn't matter (because we reset at end), so we do a linear search and take the first one
+        # Reset potential of the firing neurons (NOTE: potential(s) can be changed later by new firing neurons)
+        integrator.u[firingneurons] .= integrator.p.V_R
 
-        firingNeuron = 0    # placeholder value for if there are no more firing neurons
+        # Log the neurons that fired in this iteration
+        append!(firedneurons, firingneurons)
 
-        for i = 1:integrator.p.N
-            if integrator.u[i] >= integrator.p.V_F && !(i in firedNeurons)
-                firingNeuron = i
-                push!(firedNeurons, firingNeuron)
-                break
-            end
+        # Emtpy firingneurons (to exit while loop eventually)
+        empty!(firingneurons)
+
+
+        # The arrival of the spike(s) might have caused new neurons to fire
+
+        # Find largest potential
+        maxpotential = maximum(integrator.u)
+
+        if maxpotential >= integrator.p.V_F
+            # Find all neurons with that same potential, which are the new firingneurons
+            firingneurons = findall(u -> u == maxpotential, integrator.u)
+            @assert !any(i in firingneurons for i in firedneurons) "A neuron refired instantaneously, weights too strong"
         end
+
+        # sortedNeurons = sortperm(integrator.u; alg=QuickSort, rev=true)
     end
 
-    # Reset potentials of fired neurons
-    integrator.u[firedNeurons] .= integrator.p.V_R
-
-    # Log number of fired neurons
-    push!(integrator.p.spikes, [integrator.t, firedNeurons])
+    # Log all fired neurons
+    push!(integrator.p.spikes, [integrator.t, firedneurons])
 end
 
 
