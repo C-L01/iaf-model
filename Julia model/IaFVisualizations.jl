@@ -138,7 +138,7 @@ function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1
     end
 
     uspatialanim = @animate for t in timesteps
-        scatter(X, marker_z=sol(t), color=cgrad(:blues, rev=false),
+        scatter(X, marker_z=sol(t), color=cgrad(:blues, rev=false), framestyle=:none,
                     xlims=(-0.1,1.1), ylims=(-0.1,1.1), title="Spatial potentials at t = $(@sprintf("%.2f", t))")
         if t in spikes.t
             scatter!(X[spikes[findfirst(==(t), spikes.t), :neurons]], mc=:red, ms=8)
