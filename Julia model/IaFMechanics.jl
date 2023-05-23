@@ -20,7 +20,7 @@ Also contains logging of the spikes, so new instances should be created for ever
     delta_T = 0.5                           #( ) Sharpness parameter
     theta_rh = 5                            #(V) Rheobase threshold
 
-    Iext::Function = t -> 0                 #(A) External current
+    Iext::Function = (t,x) -> 0             #(A) External current
 
     # Reset parameters
     V_F = 5                                 #(V) Firing threshold
@@ -112,24 +112,28 @@ function genu0(para::IaFParameters)::Vector{Float64}
     return u0
 end
 
-# TODO: add spatial dependence to Iext
+
 """
 Generate the driving force function f. Takes into account the sparsity pattern of the Jacobian.
 """
 function genf(para::IaFParameters)
-    @unpack leaky, delta_T, theta_rh, Iext, N = para
+    @unpack leaky, delta_T, theta_rh, Iext, N, X = para
+
+    Iextperneuron = t -> map(Ix -> Ix(t), [s -> Iext(s,x) for x in X])
+
+    # For some reason the fact that Iextperneuron is now a vector breaks usage of @.
 
     function fleaky!(du, u, p, t)
-        @. du = -u + Iext(t)
+        du .= -u .+ Iextperneuron(t)
     end
 
     # Exponential driving force
     # fexp = @ode_def ExponentialIaF begin
-    #     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iext(t)) / tau
+    #     du = (-(u - V_rest) + delta_T * exp((u - theta_rh) / delta_T) + R * Iextperneuron(t)) / tau
     # end V_rest delta_T theta_rh R tau
 
     function fexp!(du, u, p, t)
-        @. du = -u + delta_T * exp((u - theta_rh) / delta_T) + Iext(t)
+        du .= -u .+ delta_T * exp.((u .- theta_rh) / delta_T) .+ Iextperneuron(t)
     end
 
     return ODEFunction(leaky ? fleaky! : fexp!, jac_prototype=sparse(I, N, N))

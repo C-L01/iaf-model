@@ -13,7 +13,7 @@ para = IaFParameters{Float64}(
     leaky = true,
     N = 100,
     tend = 30,
-    wdistr = :constant,
+    wdistr = :gaussian,
     w0 = 1,
     sig1 = 0.2,
     sig2 = 0.5,
@@ -23,8 +23,10 @@ para = IaFParameters{Float64}(
 
 # Update parameters that (usually) depend on other parameters
 
+I0 = para.leaky ? 6 : 4.75      # constant input sufficient to generate spikes, depends on model
+
 para = IaFParameters(para,
-    Iext = para.leaky ? (t -> 6) : (t -> 4.75),       # sin(t), exp(t/10)
+    Iext = (t,x) -> 0.85*I0 + I0*(x[1] > 0.5)*(x[2] > 0.5),       # sin(t), exp(t/10)
     V_F = para.leaky ? 5 : 7,
     )
 

@@ -20,7 +20,7 @@ Generate file suffix used for saving plots. Assumes Iext is constant.
 function genfilesuffix(para)
     @unpack leaky, N, w0, Iext, tend, r, u0distr, wdistr, sig1, sig2 = para
     includesigmas = (wdistr != :constant)       # the sigmas are only relevant with non-constant weights
-    return "altfire;$(leaky ? "leaky" : "exp");N=$N;w0=$w0;I0=$(Iext(0));u0distr=$u0distr;r=$r;wdistr=$wdistr;$(includesigmas ? "sig1=$sig1;sig2=$sig2;" : "")tend=$tend"
+    return "altfire;$(leaky ? "leaky" : "exp");N=$N;w0=$w0;I0=$(Iext(0,(0,0)));u0distr=$u0distr;r=$r;wdistr=$wdistr;$(includesigmas ? "sig1=$sig1;sig2=$sig2;" : "")tend=$tend"
     # $(Wbal ? "Wbal;" : "")
 end
 
