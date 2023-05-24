@@ -221,8 +221,9 @@ end
 
 """
 Wrapper for generating all input for the solver and subsequently solving the integrate-and-fire model for given parameters.
+If savepotentials is false, the ODE solver does not save any potential values. Spikes are still saved in para.
 """
-function solveiaf(para::IaFParameters, u0::Vector{Float64})
+function solveiaf(para::IaFParameters, u0::Vector{Float64}; savepotentials::Bool = true)
     @unpack leaky, tend, N, spikes = para
 
     empty!(spikes)      # clear spike data from a possible previous run
@@ -231,7 +232,7 @@ function solveiaf(para::IaFParameters, u0::Vector{Float64})
     tspan = (0, tend)
 
     prob = ODEProblem(f, u0, tspan, para)
-    sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(N), dense=false)
+    sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(N), save_everystep=savepotentials)
 
     return sol
 end
