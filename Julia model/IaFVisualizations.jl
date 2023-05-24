@@ -76,7 +76,7 @@ function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5,
 end
 
 
-# TODO: maybe replace timebinzise with fps? But then fps should not be too high, else you lose smoothness
+# TODO: maybe replace timebinsize with fps? But then fps should not be too high, else you lose smoothness
 """
 Create a spatial animation of the activity evolution. The fps depends on the timebinsize, so it is not a parameter.
 """
@@ -100,7 +100,7 @@ function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 
         
         # spikesx, spikesy = zip(map(j -> X[j], spikingneurons)...)
         spikelocations = map(j -> X[j], spikingneurons)
-        histogram2d(spikelocations, bins=0:spatialbinsize:1,# normalize=:density,
+        histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, rev=false),
                     title="Activity on [$(timesteps[i]), $(timesteps[i+1]))", xlabel=L"$x_1$", ylabel=L"$x_2$")
         
     end
