@@ -10,8 +10,8 @@ using .IaFMechanics, .IaFVisualizations
 Random.seed!(0)     # for replicability
 
 para = IaFParameters{Float64}(
-    leaky = true,
-    N = 100,
+    leaky = false,
+    N = 1000,
     tend = 30,
     wdistr = :gaussian,
     w0 = 1,
@@ -26,7 +26,7 @@ para = IaFParameters{Float64}(
 I0 = para.leaky ? 6 : 4.75      # constant input sufficient to generate spikes, depends on model
 
 para = IaFParameters(para,
-    Iext = (t,x) -> 0.85*I0 + I0*(x[1] > 0.5)*(x[2] > 0.5),       # sin(t), exp(t/10)
+    Iext = (t,x) -> 0.95*I0 + I0*(x[1] < 0.5)*(x[2] < 0.5),       # sin(t), exp(t/10)
     V_F = para.leaky ? 5 : 7,
     )
 
@@ -63,3 +63,4 @@ fps = 10
 # udensityanim(sol, para; fps=fps, playspeed=2, save=save)
 # utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
 # uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
+Aspatialanim(para; spatialbinsize=0.1, timebinsize=0.4, playspeed=1, save=save)

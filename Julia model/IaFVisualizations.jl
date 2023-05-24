@@ -5,7 +5,7 @@ module IaFVisualizations
 
 # include("IaFMechanics.jl")
 
-export uvaplot, udensityanim, utorusanim, uspatialanim
+export uvaplot, udensityanim, utorusanim, uspatialanim, Aspatialanim
 
 using Parameters, DifferentialEquations, Plots, Statistics, LaTeXStrings, Printf
 # using .IaFMechanics: IaFParameters
@@ -73,6 +73,44 @@ function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5,
     end
 
     display(gif(udensityanim, fps=playspeed*fps))
+end
+
+
+# TODO: maybe replace timebinzise with fps? But then fps should not be too high, else you lose smoothness
+"""
+Create a spatial animation of the activity evolution. The fps depends on the timebinsize, so it is not a parameter.
+"""
+function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 = 0.2,
+                            playspeed::Real = 1, save::Bool = false)
+    @unpack N, tend, X, spikes = para
+
+    timesteps = range(0, tend, step=timebinsize)       # NOTE: tstart = 0
+
+    # Determine for each timestep which (if any) spike index occurred after it first
+    spikeindicesedges = [findfirst(>=(t), spikes.t) for t in timesteps]
+
+    Aspatialanim = @animate for i = 1:(length(timesteps)-1)
+        if isnothing(spikeindicesedges[i])
+            spikingneurons = []
+        elseif isnothing(spikeindicesedges[i+1])
+            spikingneurons = vcat(spikes[spikeindicesedges[i]:end, :neurons]...)
+        else
+            spikingneurons = vcat(spikes[spikeindicesedges[i]:(spikeindicesedges[i+1]-1), :neurons]...)
+        end
+        
+        # spikesx, spikesy = zip(map(j -> X[j], spikingneurons)...)
+        spikelocations = map(j -> X[j], spikingneurons)
+        histogram2d(spikelocations, bins=0:spatialbinsize:1,# normalize=:density,
+                    title="Activity on [$(timesteps[i]), $(timesteps[i+1]))", xlabel=L"$x_1$", ylabel=L"$x_2$")
+        
+    end
+
+    if save
+        filesuffix = genfilesuffix(para)
+        gif(Aspatialanim, "animations/Aspatialanim_" * filesuffix * ".avi", fps=playspeed/timebinsize)
+    end
+
+    display(gif(Aspatialanim, fps=playspeed/timebinsize))
 end
 
 
