@@ -55,16 +55,17 @@ end
 Create an animation of the potential density evolution.
 """
 function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5, playspeed::Real = 1, save::Bool = false)
-    @unpack tend, V_R, V_F = para
+    @unpack tend = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
-    bins = range(V_R, V_F, step=binsize)
+    bins = range(0, 1, step=binsize)
     # bins = :rice
     ymax = 1/binsize    # because of pdf normalization
 
+    # TODO: maybe add vertical line at V_rest
     udensityanim = @animate for t in timesteps
         histogram(sol(t), bins=bins, normalize=:pdf,
-                    xlims=(V_R,V_F), ylims=(0,ymax), title="Potential density at t = $(@sprintf("%.2f", t))")
+                    xlims=(0,1), ylims=(0,ymax), title="Potential density at t = $(@sprintf("%.2f", t))")
     end
 
     if save
@@ -77,6 +78,7 @@ end
 
 
 # TODO: maybe replace timebinsize with fps? But then fps should not be too high, else you lose smoothness
+# TODO: make the scale of the cmap constant throughout the animation
 """
 Create a spatial animation of the activity evolution. The fps depends on the timebinsize, so it is not a parameter.
 """
@@ -98,10 +100,11 @@ function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 
             spikingneurons = vcat(spikes[spikeindicesedges[i]:(spikeindicesedges[i+1]-1), :neurons]...)
         end
         
-        # spikesx, spikesy = zip(map(j -> X[j], spikingneurons)...)
         spikelocations = map(j -> X[j], spikingneurons)
+        # histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, 1-length(spikingneurons)/N, rev=false),
+        #             title="Activity on [$(timesteps[i]), $(timesteps[i+1]))", xlabel=L"$x_1$", ylabel=L"$x_2$")
         histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, rev=false),
-                    title="Activity on [$(timesteps[i]), $(timesteps[i+1]))", xlabel=L"$x_1$", ylabel=L"$x_2$")
+                    title="Activity on [$(timesteps[i]), $(timesteps[i+1])) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$")
         
     end
 
@@ -115,10 +118,10 @@ end
 
 
 """
-Create an animation of the evolution of the potentials mapped onto a torus from V_R to V_F.
+Create an animation of the evolution of the potentials mapped onto a torus from 0 to 1.
 """
 function utorusanim(sol::ODESolution, para; fps::Int = 5, playspeed::Real = 1, save::Bool = false)
-    @unpack V_R, V_F, tend = para
+    @unpack tend = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
 
@@ -126,7 +129,7 @@ function utorusanim(sol::ODESolution, para; fps::Int = 5, playspeed::Real = 1, s
     # @userplot TorusPlot
     # @recipe function g(tp::TorusPlot)
     #     u = tp.args
-    #     angles = 2π * (u .- V_R) / (V_F - V_R) + π/2
+    #     angles = 2π * u + π/2
     #     cos.(angles), sin.(angles)
     # end
 
@@ -140,7 +143,7 @@ function utorusanim(sol::ODESolution, para; fps::Int = 5, playspeed::Real = 1, s
 
     torusanim = @animate for t in timesteps
         # torusplot(sol(t))
-        potentialangles = 2π * (sol(t) .- V_R) / (V_F - V_R) .+ π/2
+        potentialangles = 2π * sol(t) .+ π/2
         scatter(cos.(potentialangles), sin.(potentialangles), mc=:red, ms=8, ma=0.3, framestyle=:none,
                 xlims=(-1.5,1.5), ylims=(-1.1,1.1), title="Potential torus at t = $(@sprintf("%.2f", t))")
         plot!(torusx, torusy, lc=:black)

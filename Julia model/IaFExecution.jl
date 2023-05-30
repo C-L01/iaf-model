@@ -11,23 +11,24 @@ Random.seed!(0)     # for replicability
 
 para = IaFParameters{Float64}(
     leaky = true,
-    N = 1000,
-    tend = 30,
-    wdistr = :gaussian,
-    w0 = 1,
+    N = 100,
+    tend = 20,
+    wdistr = :constant,
+    w0 = 1 / (5 - (-10)),
     sig1 = 0.2,
     sig2 = 0.5,
     u0distr = :uniform,
-    r = 5
+    r = 5 / (5 - (-10))
     )
 
 # Update parameters that (usually) depend on other parameters
 
-I0 = para.leaky ? 6 : 4.75      # constant input sufficient to generate spikes, depends on model
+I0 = para.leaky ? 6/(5-(-10)) : 5/(7-(-10))   # constant input sufficient to generate spikes, depends on model
 
 para = IaFParameters(para,
-    Iext = (t,x) -> 0.85*I0 + 0.5*I0*(x[1] < 0.5)*(x[2] < 0.5),       # sin(t), exp(t/10)
-    V_F = para.leaky ? 5 : 7,
+    Iext = (t,x) -> I0,
+    # Iext = (t,x) -> 0.95*I0 + sin(t*π/10)*0.5*I0*(x[1] < 0.3)*(x[2] < 0.3) - sin(t*π/10)*0.5*I0*(x[1] > 0.7)*(x[2] > 0.7),       # sin(t), exp(t/10)
+    V_rest = para.leaky ? (0 - (-10)) / (5 - (-10)) : (0 - (-10)) / (7 - (-10)),
     )
 
 # Wbal = false
@@ -63,4 +64,4 @@ fps = 10
 # udensityanim(sol, para; fps=fps, playspeed=2, save=save)
 # utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
 # uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
-Aspatialanim(para; spatialbinsize=0.1, timebinsize=0.3, playspeed=1, save=save)
+# Aspatialanim(para; spatialbinsize=0.1, timebinsize=0.4, playspeed=0.5, save=save)

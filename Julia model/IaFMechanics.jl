@@ -17,20 +17,18 @@ Also contains logging of the spikes, so new instances should be created for ever
     leaky::Bool = true                      # Whether to use leaky IaF (alternative is exponential)
 
     # Driving force parameters (only relevant for exponential)
-    delta_T = 0.5                           #( ) Sharpness parameter
-    theta_rh = 5                            #(V) Rheobase threshold
+    delta_T = 0.5 / (7 - (-10))             #( ) Sharpness parameter
+    theta_rh = (5 - (-10)) / (7 - (-10))    #(V) Rheobase threshold
 
     Iext::Function = (t,x) -> 0             #(A) External current
 
-    # Reset parameters
-    V_F = 5                                 #(V) Firing threshold
-    V_R = -10                               #(V) Potential after reset
+    V_rest = 2/3                            #(V) Normalized resting potential
 
     # Network parameters
     N::Int; @assert N >= 1                              #(#) Number of neurons
     X::Vector{Tuple{T,T}} = tuple.(rand(N), rand(N))    #(x) Coordinates of neurons (if empty, model is non-spatial)
     wdistr::Symbol = :constant                          # Type of coupling/weight function
-    w0 = 1                                              # (Maximum) synaptic weight
+    w0 = 1 / (5-(-10))                                  # (Maximum) synaptic weight
     sig1 = 0.2                                          # Standard deviation for Gaussian, and first parameter for Mexican-hat
     sig2 = 0.5                                          # Second Mexican-hat parameter
     W::Matrix{T} = zeros(N,N)                           # Synaptic weights
@@ -90,19 +88,19 @@ Three options for u0 distribution:
 Always returns a sorted u0, from high to low.
 """
 function genu0(para::IaFParameters)::Vector{Float64}
-    @unpack r, u0distr, V_F, N = para
+    @unpack r, V_rest, u0distr, N = para
 
     @assert r >= 0 "Radius must be nonnegative."
 
     if u0distr == :range                                            # deterministic uniform
-        u0 = N > 1 ? range(min(0.99 * V_F, r), -r, N) : [0]
+        u0 = N > 1 ? range(min(0.99, V_rest+r), V_rest-r, N) : [0]
 
     elseif u0distr == :uniform                                      #~Unif[-r,r]
-        d = Uniform(-r, min(0.99 * V_F, r))
+        d = Uniform(V_rest-r, min(0.99, V_rest+r))
         u0 = sort(rand(d, N), rev=true)
 
     elseif u0distr == :normal                                       #~N(0,r^2) (censored)
-        d = truncated(Normal(0,r), upper=0.99 * V_F)
+        d = truncated(Normal(V_rest,r), upper=0.99)
         u0 = sort(rand(d, N), rev=true)
 
     else
@@ -117,14 +115,14 @@ end
 Generate the driving force function f. Takes into account the sparsity pattern of the Jacobian.
 """
 function genf(para::IaFParameters)
-    @unpack leaky, delta_T, theta_rh, Iext, N, X = para
+    @unpack leaky, V_rest, delta_T, theta_rh, Iext, N, X = para
 
     Iextperneuron = t -> map(Ix -> Ix(t), [s -> Iext(s,x) for x in X])
 
     # For some reason the fact that Iextperneuron is now a vector breaks usage of @.
 
     function fleaky!(du, u, p, t)
-        du .= -u .+ Iextperneuron(t)
+        du .= -(u .- V_rest) .+ Iextperneuron(t)
     end
 
     # Exponential driving force
@@ -133,7 +131,7 @@ function genf(para::IaFParameters)
     # end V_rest delta_T theta_rh R tau
 
     function fexp!(du, u, p, t)
-        du .= -u .+ delta_T * exp.((u .- theta_rh) / delta_T) .+ Iextperneuron(t)
+        du .= -(u .- V_rest) .+ delta_T * exp.((u .- theta_rh) / delta_T) .+ Iextperneuron(t)
     end
 
     return ODEFunction(leaky ? fleaky! : fexp!, jac_prototype=sparse(I, N, N))
@@ -145,18 +143,18 @@ end
 Check whether any neurons have fired. Used for Callback.
 """
 function fireCondition!(out, u::Vector{Float64}, t::Real, integrator)
-    @. out = u - integrator.p.V_F
+    @. out = u - 1
 end
 
 
 """
 Perform post-spike potential updates, where firingneuron is the neuron that fires (first). Used for Callback.
-Difference with main branch: neurons that have fired can their potential changed from V_R by firings they triggered.
 
 Assumes that the firingneuron it is passed has the highest potential of all neurons (could be tied though).
-Assumes that weights are sufficiently small such that potentials will not be elevated from V_R to V_F by other firings alone.
+Assumes that weights are sufficiently small such that potentials will not be elevated all the way from 0 to 1 by other firings alone.
 """
 function fire!(integrator, firingneuron::Int)
+    # @unpack spikes = integrator.p
     
     # Search for neurons that have exactly the same potential as the firingneuron (they should also fire)
     firingneurons::Vector{Int} = findall(u -> u == integrator.u[firingneuron], integrator.u)
@@ -176,6 +174,13 @@ function fire!(integrator, firingneuron::Int)
 
         # Reset potential of the firing neurons (NOTE: potential(s) can be changed later by new firing neurons)
         integrator.u[firingneurons] .= integrator.p.V_R
+        #                         norm(integrator.p.X[j] .- integrator.p.X[i]))
+        #                     for sigma in spikes.t
+        #                         if j in spikes[findfirst(==(sigma), spikes.t), :neurons])
+        #         end
+        #     end
+        # end
+
 
         # Log the neurons that fired in this iteration
         append!(firedneurons, firingneurons)
@@ -184,12 +189,13 @@ function fire!(integrator, firingneuron::Int)
         empty!(firingneurons)
 
 
-        # The arrival of the spike(s) might have caused new neurons to fire
+
+        ### The arrival of the spike(s) might have caused new neurons to fire
 
         # Find largest potential
         maxpotential = maximum(integrator.u)
 
-        if maxpotential >= integrator.p.V_F
+        if maxpotential >= 1
             # Find all neurons with that same potential, which are the new firingneurons
             firingneurons = findall(u -> u == maxpotential, integrator.u)
             @assert !any(i in firingneurons for i in firedneurons) "A neuron refired instantaneously, weights too strong"
