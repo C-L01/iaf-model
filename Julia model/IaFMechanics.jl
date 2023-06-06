@@ -3,7 +3,7 @@ Contains the mechanics needed to numerically solve an integrate-and-fire model.
 """
 module IaFMechanics
 
-export IaFParameters, solveiaf, genu0, updateW
+export IaFParameters, solveiaf
 
 using Parameters, DataFrames, Distributions, DifferentialEquations, LinearAlgebra, SparseArrays#, ParameterizedFunctions
 
@@ -17,8 +17,8 @@ Also contains logging of the spikes, so new instances should be created for ever
     leaky::Bool = true                      # Whether to use leaky IaF (alternative is exponential)
 
     # Driving force parameters (only relevant for exponential)
-    delta_T = 0.5 / (7 - (-10))             #( ) Sharpness parameter
-    theta_rh = (5 - (-10)) / (7 - (-10))    #(V) Rheobase threshold
+    delta_T = 0.5 / 17                      #( ) Sharpness parameter
+    theta_rh = 15 / 17                      #(V) Rheobase threshold
 
     Iext::Function = (t,x) -> 0             #(A) External current
 
@@ -28,13 +28,13 @@ Also contains logging of the spikes, so new instances should be created for ever
     N::Int; @assert N >= 1                              #(#) Number of neurons
     X::Vector{Tuple{T,T}} = tuple.(rand(N), rand(N))    #(x) Coordinates of neurons (if empty, model is non-spatial)
     wdistr::Symbol = :constant                          # Type of coupling/weight function
-    w0 = 1 / (5-(-10))                                  # (Maximum) synaptic weight
+    w0 = 1 / 15                                         # (Maximum) synaptic weight
     sig1 = 0.2                                          # Standard deviation for Gaussian, and first parameter for Mexican-hat
     sig2 = 0.5                                          # Second Mexican-hat parameter
     W::Matrix{T} = zeros(N,N)                           # Synaptic weights
 
     # Initial conditions
-    r = 3; @assert r >= 0                   #(V) Potential radius around 0
+    r = 0.4; @assert r >= 0                 #(V) Potential radius around 0
     u0distr::Symbol = :range                # Type of distribution for u0
 
     # Termination
@@ -55,7 +55,7 @@ Three options for weight distribution:
 function updateW(para::IaFParameters)
     @unpack W, w0, wdistr, sig1, sig2, X, N = para
 
-    if wdistr == :constant                                         # standard full-connectivity
+    if wdistr == :constant                                         # Standard full-connectivity
         w = x -> w0
 
     elseif wdistr == :gaussian                                     # Gaussian based on distance
@@ -99,7 +99,7 @@ function genu0(para::IaFParameters)::Vector{Float64}
         d = Uniform(V_rest-r, min(0.99, V_rest+r))
         u0 = sort(rand(d, N), rev=true)
 
-    elseif u0distr == :normal                                       #~N(0,r^2) (censored)
+    elseif u0distr == :normal                                       #~N(0,r^2) (truncated)
         d = truncated(Normal(V_rest,r), upper=0.99)
         u0 = sort(rand(d, N), rev=true)
 
@@ -149,6 +149,7 @@ end
 
 """
 Perform post-spike potential updates, where firingneuron is the neuron that fires (first). Used for Callback.
+Neurons that have fired can have their potential changed from 0 by firings they triggered.
 
 Assumes that the firingneuron it is passed has the highest potential of all neurons (could be tied though).
 Assumes that weights are sufficiently small such that potentials will not be elevated all the way from 0 to 1 by other firings alone.
@@ -166,7 +167,7 @@ function fire!(integrator, firingneuron::Int)
         # Print if there are more then one firingneurons, as this is exceptional
         # TODO: if this never happens, maybe optimize by removing the findalls
         if length(firingneurons) > 1
-            println("Neurons $firingneurons fired *exactly* at the same fire iteration")
+            println("Neurons $firingneurons fired *exactly* at the same fire iteration at time $(integrator.t)")
         end
 
         # Increment potential of all neurons based on weights
@@ -227,12 +228,13 @@ end
 
 """
 Wrapper for generating all input for the solver and subsequently solving the integrate-and-fire model for given parameters.
-If savepotentials is false, the ODE solver does not save any potential values. Spikes are still saved in para.
+If savepotentials is false, the ODE solver does not save all potential values. Spikes are still saved in para.
 """
 function solveiaf(para::IaFParameters, u0::Vector{Float64}; savepotentials::Bool = true)
     @unpack leaky, tend, N, spikes = para
 
     empty!(spikes)      # clear spike data from a possible previous run
+    updateW(para)       # set (initial) weights in W based on para.wdistr's value
 
     f = genf(para)
     tspan = (0, tend)
@@ -241,6 +243,10 @@ function solveiaf(para::IaFParameters, u0::Vector{Float64}; savepotentials::Bool
     sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(N), save_everystep=savepotentials)
 
     return sol
+end
+
+function solveiaf(para::IaFParameters; savepotentials::Bool = true)
+    return solveiaf(para, genu0(para); savepotentials=savepotentials)
 end
 
 end
