@@ -174,10 +174,38 @@ function fire!(integrator, firingneuron::Int)
         integrator.u .+= integrator.p.W[:, firingneurons]       # TODO: could exclude firingneurons here because of reset
 
         # Reset potential of the firing neurons (NOTE: potential(s) can be changed later by new firing neurons)
-        integrator.u[firingneurons] .= integrator.p.V_R
-        #                         norm(integrator.p.X[j] .- integrator.p.X[i]))
-        #                     for sigma in spikes.t
-        #                         if j in spikes[findfirst(==(sigma), spikes.t), :neurons])
+        integrator.u[firingneurons] .= 0.0
+
+        
+        ### (Possibly) update weights, in particular the synapses that go into the firingneuron(s)
+
+        # if learning...
+
+        # TODO: if we keep this loop, make sure that is ordered efficiently
+        # I think we might as well loop over all sigmaindices first, and the over their spikes[sigmaindex, :neurons]
+        # Although that might be inefficient with the distance computation
+        # for i = firingneurons
+        #     for j = 1:integrator.p.N
+        #         if j != i
+        #             dist = norm(integrator.p.X[i] .- integrator.p.X[j])
+
+        #             for sigmaindex in eachindex(spikes)
+        #                 if j in spikes[sigmaindex, :neurons]
+        #                     sigma = spikes[sigmaindex, :t]
+
+        #                     # Update presynaptic weight w_ij (j -> i)
+        #                     integrator.p.W[i, j] += learning_function(
+        #                                                 integrator.p.W[i, j],
+        #                                                 integrator.t - sigma,
+        #                                                 dist)
+        #                     # Update postsynaptic weight w_ji (i -> j)
+        #                     integrator.p.W[j, i] = learning_function(
+        #                                                 integrator.p.W[j, i],
+        #                                                 sigma - integrator.t,
+        #                                                 dist)
+                                
+        #                 end
+        #             end
         #         end
         #     end
         # end
