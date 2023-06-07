@@ -103,7 +103,7 @@ function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 
         spikelocations = map(j -> X[j], spikingneurons)
         # histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, 1-length(spikingneurons)/N, rev=false),
         #             title="Activity on [$(timesteps[i]), $(timesteps[i+1]))", xlabel=L"$x_1$", ylabel=L"$x_2$")
-        histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, rev=false),
+        histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, rev=false), opacity=max(length(spikingneurons)/N, 0.1),
                     title="Activity on [$(timesteps[i]), $(timesteps[i+1])) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$")
         
     end
