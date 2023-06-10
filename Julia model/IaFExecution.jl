@@ -4,6 +4,7 @@ includet("IaFVisualizations.jl")
 using Parameters, DifferentialEquations, Random#, Plots#, Statistics, LaTeXStrings, Printf
 using .IaFMechanics, .IaFVisualizations
 
+
 #########################
 ### Parameter setting ###
 #########################
@@ -15,7 +16,7 @@ Random.seed!(0)     # for replicability
 para = IaFParameters{Float64}(
     leaky = false,
     N = 200,
-    tend = 40
+    tend = 20
     )
 
 
@@ -24,7 +25,7 @@ para = IaFParameters{Float64}(
 para = IaFParameters(para,
     u0distr = :uniform,
     r = 0.4,
-    w0distr = :constant,
+    w0distr = :gaussian,
     w0 = 5 / 15,
     sig1 = 0.2,
     sig2 = 0.5
@@ -34,6 +35,7 @@ para = IaFParameters(para,
 ### Resting potential & external stimulus
 
 I0 = para.leaky ? 0.4 : 0.3   # constant input sufficient to generate spikes, depends on model
+# I0 = 0.5
 
 para = IaFParameters(para,
     V_rest = para.leaky ? 10 / 15 : 10 / 17,
@@ -81,7 +83,8 @@ para = IaFParameters(para,
 # u0 = [3.8, 1.5, 1, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]     # somewhat pathological counter-syncing example
 # sol = solveiaf(para, u0; savepotentials=true)
 
-sol = solveiaf(para; savepotentials=true)
+# sol = solveiaf(para; savepotentials=true)
+sol, savedweights = solveiaf(para; savepotentials=true, saveweightsperiod=5)
 
 println("System solved")
 
@@ -100,4 +103,4 @@ fps = 10
 # udensityanim(sol, para; fps=fps, playspeed=2, save=save)
 # utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
 # uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
-Aspatialanim(para; spatialbinsize=0.1, timebinsize=0.3, playspeed=1, save=save)
+Aspatialanim(para; spatialbinsize=0.2, timebinsize=0.2, playspeed=0.5, save=save)

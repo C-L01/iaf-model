@@ -22,7 +22,7 @@ Also contains logging of the spikes, so new instances should be created for ever
 
     Iext::Function = (t,x) -> 0             #(A) External current
 
-    V_rest = 2/3                            #(V) Normalized resting potential
+    V_rest = 1/2                            #(V) Normalized resting potential
 
     # Network parameters
     N::Int; @assert N >= 1                              #(#) Number of neurons
@@ -51,13 +51,13 @@ end
 
 
 """
-Update the weight matrix W, i.e. matrix of w_ij's. Note that in all cases the values on the diagonal do not matter.
+Set the (initial) weight matrix W, i.e. matrix of w_ij's. Note that in all cases the values on the diagonal do not matter.
 Three options for weight distribution:
     - constant
     - gaussian
     - mexican
 """
-function updateW(para::IaFParameters)
+function setW(para::IaFParameters)::Nothing
     @unpack W, w0, w0distr, sig1, sig2, X, N = para
 
     if w0distr == :constant                                         # Standard full-connectivity
@@ -245,15 +245,16 @@ end
 # TODO: external pulses could be implemented as an integration event; make sure to tstop at the pulse time
 # tPulse = 1                     #(s) time of pulse
 # dt = 1e-2                      #(s) time interval of pulse input
-# dV = 5.5                         #(V) voltage increase due to pulse
+# dV = 5.5                       #(V) voltage increase due to pulse
 # Iext(t) = (dV/dt) * (heaviside(t-tPulse) - heaviside(t-tPulse-dt))
 
 """
 Create the VectorContinuousCallback used by the ODE solver to check for and handle spikes.
+Potentials are saved (at most) only after the callback has been applied, mimicing càdlàg function behavior.
 """
-function gencallback(N::Int)::VectorContinuousCallback
+function genfirecallback(N::Int; savepotentials::Bool = true)::VectorContinuousCallback
     # fireCondition! should never detect a downcrossing root, hence the nothing argument
-    return VectorContinuousCallback(fireCondition!, fire!, nothing, N)
+    return VectorContinuousCallback(fireCondition!, fire!, nothing, N; save_positions=(false,savepotentials))
 end
 
 
@@ -261,24 +262,41 @@ end
 """
 Wrapper for generating all input for the solver and subsequently solving the integrate-and-fire model for given parameters.
 If savepotentials is false, the ODE solver does not save all potential values. Spikes are still saved in para.
+Possible to supply saveweightsperiod to save the synaptic weights. When set to 0, weights are not saved.
+
+Returns tuple with solution object and possibly savedweights.
 """
-function solveiaf(para::IaFParameters, u0::Vector{Float64}; savepotentials::Bool = true)
+function solveiaf(para::IaFParameters, u0::Vector{Float64}; savepotentials::Bool = true, saveweightsperiod::Real = 0)
     @unpack leaky, tend, N, spikes = para
 
     empty!(spikes)      # clear spike data from a possible previous run
-    updateW(para)       # set (initial) weights in W based on para.w0distr's value
+    setW(para)          # set (initial) weights in W based on para.w0distr's value
 
     f = genf(para)
     tspan = (0, tend)
 
-    prob = ODEProblem(f, u0, tspan, para)
-    sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=gencallback(N), save_everystep=savepotentials)
+    firecb = genfirecallback(N; savepotentials=savepotentials)
 
-    return sol
+    if saveweightsperiod > 0
+        savedweights = SavedValues(Float64, Matrix{Float64})
+        savecb = SavingCallback((u,t,integrator) -> copy(integrator.p.W), savedweights; saveat=0:saveweightsperiod:tend)
+        cb = CallbackSet(firecb, savecb)
+    else
+        cb = firecb
+    end
+
+    prob = ODEProblem(f, u0, tspan, para)
+    sol = solve(prob; reltol=1e-4, abstol=1e-6, callback=cb, save_everystep=savepotentials)
+
+    if saveweightsperiod > 0
+        return sol, savedweights
+    else
+        return sol
+    end
 end
 
-function solveiaf(para::IaFParameters; savepotentials::Bool = true)
-    return solveiaf(para, genu0(para); savepotentials=savepotentials)
+function solveiaf(para::IaFParameters; savepotentials::Bool = true, saveweightsperiod::Real = 0)
+    return solveiaf(para, genu0(para); savepotentials=savepotentials, saveweightsperiod=saveweightsperiod)
 end
 
 end
