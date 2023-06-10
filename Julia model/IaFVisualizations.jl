@@ -78,7 +78,6 @@ end
 
 
 # TODO: maybe replace timebinsize with fps? But then fps should not be too high, else you lose smoothness
-# TODO: make the scale of the cmap constant throughout the animation
 """
 Create a spatial animation of the activity evolution. The fps depends on the timebinsize, so it is not a parameter.
 """
@@ -87,6 +86,7 @@ function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 
     @unpack N, tend, X, spikes = para
 
     timesteps = range(0, tend, step=timebinsize)       # NOTE: tstart = 0
+    nrbins = ceil(1/spatialbinsize)^2
 
     # Determine for each timestep which (if any) spike index occurred after it first
     spikeindicesedges = [findfirst(>=(t), spikes.t) for t in timesteps]
@@ -101,9 +101,7 @@ function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 
         end
         
         spikelocations = map(j -> X[j], spikingneurons)
-        # histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, 1-length(spikingneurons)/N, rev=false),
-        #             title="Activity on [$(timesteps[i]), $(timesteps[i+1]))", xlabel=L"$x_1$", ylabel=L"$x_2$")
-        histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:Reds, rev=false), opacity=max(length(spikingneurons)/N, 0.1),
+        histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:YlOrRd_9), cbarlims=(0,N/nrbins),
                     title="Activity on [$(timesteps[i]), $(timesteps[i+1])) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$")
         
     end
