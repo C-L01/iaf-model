@@ -83,8 +83,12 @@ para = IaFParameters(para,
 # u0 = [3.8, 1.5, 1, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]     # somewhat pathological counter-syncing example
 # sol = solveiaf(para, u0; savepotentials=true)
 
-# sol = solveiaf(para; savepotentials=true)
-sol, savedweights = solveiaf(para; savepotentials=true, saveweightsperiod=5)
+
+if para.learning
+    sol, savedweights = solveiaf(para; savepotentials=true, saveweightsperiod=para.tend/2)
+else
+    sol = solveiaf(para; savepotentials=true)
+end
 
 println("System solved")
 
@@ -104,3 +108,7 @@ fps = 10
 # utorusanim(sol, para; fps=fps, playspeed=1.5, save=save)
 # uspatialanim(sol, para; fps=fps, playspeed=1, save=save)
 Aspatialanim(para; spatialbinsize=0.2, timebinsize=0.2, playspeed=0.5, save=save)
+
+if para.learning
+    Wplot(para, savedweights; binsize=0.2, save=save)
+end

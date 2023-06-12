@@ -5,7 +5,7 @@ module IaFVisualizations
 
 # include("IaFMechanics.jl")
 
-export uvaplot, udensityanim, utorusanim, uspatialanim, Aspatialanim
+export uvaplot, udensityanim, utorusanim, uspatialanim, Aspatialanim, Wplot
 
 using Parameters, DifferentialEquations, Plots, Statistics, LaTeXStrings, Printf
 # using .IaFMechanics: IaFParameters
@@ -59,7 +59,6 @@ function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5,
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
     bins = range(0, 1, step=binsize)
-    # bins = :rice
     ymax = 1/binsize    # because of pdf normalization
 
     # TODO: maybe add vertical line at V_rest
@@ -190,6 +189,50 @@ function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1
     end
 
     display(gif(uspatialanim, fps=playspeed*realfps))
+end
+
+
+"""
+Create a plot of the average synaptic strength between spatial bins of neurons.
+"""
+function Wplot(para, savedweights::SavedValues; binsize::Float64 = 0.1, save::Bool = false)
+    @unpack X, w0, N = para
+
+    preplots = []
+    postplots = []
+
+    nrbins = ceil(1/binsize)^2
+
+    for n in eachindex(savedweights.t)
+
+        W = savedweights.saveval[n]
+
+        total_presynaptic = vec(sum(W, dims=2))         # total incoming weight strength per neuron
+        total_postsynaptic = vec(sum(W, dims=1))        # total outgoing weight strength per neuron
+
+        push!(preplots, histogram2d(X, bins=0:binsize:1, weights=total_presynaptic, color=cgrad(:roma, rev=true), cbarlims=(-N*w0/nrbins,N*w0/nrbins),
+                        title="Pre on $(savedweights.t[n]) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$"))
+
+        push!(postplots, histogram2d(X, bins=0:binsize:1, weights=total_postsynaptic, color=cgrad(:roma, rev=true), cbarlims=(-N*w0/nrbins,N*w0/nrbins),
+                        title="Post on $(savedweights.t[n]) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$"))
+
+        # for j in spikingneurons
+        #     postneurons = 1:N .!= j
+            # quiver!(repeat(X[j,:], N-1), quiver=(X[postneurons,:]),
+            #         line_z=W[postneurons, j], color=cgrad(:redgreensplit, rev=false), lw=3)
+        #     plot!([([X[j,1], X[i,1]], [X[j,2], X[i,2]]) for i = 1:N if i != j],
+        #             color=cw.(W[postneurons, j]))
+        # end
+    end
+
+    Wplot = plot(preplots..., postplots..., layout=(2, length(preplots)), link=:x, thickness_scaling=1)
+    
+    if save
+        filesuffix = genfilesuffix(para)
+        png(Wplot, "images/W_" * filesuffix)
+    end
+
+    display(Wplot)
 end
 
 end
