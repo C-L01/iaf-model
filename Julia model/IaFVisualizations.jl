@@ -5,7 +5,7 @@ module IaFVisualizations
 
 # include("IaFMechanics.jl")
 
-export uvaplot, udensityanim, utorusanim, uspatialanim, Aspatialanim, Wplot
+export genfilesuffix, uvaplot, udensityanim, utorusanim, uspatialanim, Aspatialanim, Wplot
 
 using Parameters, DifferentialEquations, Plots, Statistics, LaTeXStrings, Printf
 # using .IaFMechanics: IaFParameters
@@ -18,9 +18,18 @@ default(legend=false)
 Generate file suffix used for saving plots. Assumes Iext is constant.
 """
 function genfilesuffix(para)
-    @unpack leaky, N, w0, Iext, tend, r, u0distr, w0distr, sig1, sig2 = para
-    includesigmas = (w0distr != :constant)       # the sigmas are only relevant with non-constant weights
-    return "altfire;$(leaky ? "leaky" : "exp");N=$N;w0=$w0;I0=$(Iext(0,(0,0)));u0distr=$u0distr;r=$r;w0distr=$w0distr;$(includesigmas ? "sig1=$sig1;sig2=$sig2;" : "")$(para.learning ? "learning;" : "")tend=$tend"
+    @unpack leaky, N, w0, Iext, tend, r, u0distr, w0distr, sig1, sig2, learning = para
+    includesigmas = (w0distr != :constant)       # the sigmas are only relevant with non-constant initial weights
+    return (
+        "$(leaky ? "leaky" : "exp");N=$N;"
+        * "I0=$(round(Iext(0,(0,0)), digits=2));tend=$tend"
+        * (N > 1 ? 
+        (";w0=$(round(w0, digits=2));"
+        * "u0distr=$u0distr;r=$r;w0distr=$w0distr;"
+        * "$(includesigmas ? "sig1=$sig1;sig2=$sig2;" : "")"
+        * "$(para.learning ? "learning" : "")")
+        : "")
+    )
     # $(Wbal ? "Wbal;" : "")
 end
 

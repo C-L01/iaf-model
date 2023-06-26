@@ -14,15 +14,17 @@ Also contains logging of the spikes, so new instances should be created for ever
 """
 @with_kw struct IaFParameters{T<:AbstractFloat} @deftype T
     # Driving force type
-    leaky::Bool = true                      # Whether to use leaky IaF (alternative is exponential)
+    leaky::Bool = true                        # Whether to use leaky IaF (alternative is exponential)
 
     # Driving force parameters (only relevant for exponential)
-    delta_T = 0.5 / 17                      #( ) Sharpness parameter
-    theta_rh = 15 / 17                      #(V) Rheobase threshold
+    # delta_T = 0.5 / 17                      #( ) Sharpness parameter
+    # theta_rh = 15 / 17                      #(V) Rheobase threshold
+    theta_rh = 0.45                           #(V) Rheobase threshold
+    delta_T = 0.19                            #( ) Sharpness parameter
 
-    Iext::Function = (t,x) -> 0             #(A) External current
+    Iext::Function = (t,x) -> 0               #(A) External current
 
-    V_rest = 1/2                            #(V) Normalized resting potential
+    V_rest = 0.37                             #(V) Resting potential
 
     # Network parameters
     N::Int; @assert N >= 1                              #(#) Number of neurons
@@ -46,7 +48,7 @@ Also contains logging of the spikes, so new instances should be created for ever
 
 
     # Logging variables
-    spikes::DataFrame = DataFrame(t = T[], neurons = Vector{Int}[])
+    spikes::DataFrame = DataFrame(t = T[], neurons = Vector{Int}[])     # TODO: use UInt16?
 end
 
 
