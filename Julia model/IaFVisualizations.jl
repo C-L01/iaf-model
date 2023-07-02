@@ -25,9 +25,9 @@ function genfilesuffix(para)
         * "I0=$(round(Iext(0,(0,0)), digits=2));tend=$tend"
         * (N > 1 ? 
         (";w0=$(round(w0, digits=2));"
-        * "u0distr=$u0distr;r=$r;w0distr=$w0distr;"
-        * "$(includesigmas ? "sig1=$sig1;sig2=$sig2;" : "")"
-        * "$(para.learning ? "learning" : "")")
+        * "u0distr=$u0distr;r=$r;w0distr=$w0distr"
+        * "$(includesigmas ? ";sig1=$sig1;sig2=$sig2" : "")"
+        * "$(para.learning ? ";learning" : "")")
         : "")
     )
     # $(Wbal ? "Wbal;" : "")
@@ -37,23 +37,33 @@ end
 """
 Create a stacked plot of 3 potentials, the variance and the activity over time
 """
-function uvaplot(sol::ODESolution, para; activitybinsize::Float64 = 0.2, save::Bool = false)
+function uvaplot(sol::ODESolution, para; activitybinsize::Real = 0.2, u::Bool = true, v::Bool = true, a::Bool = true, save::Bool = false)
     @unpack N, tend = para
+    @assert u+v+a > 0 "At least one plot type needs to be true"
 
-    pu = plot(sol, idxs=[round(Int, i) for i in range(1, N, length=3)], continuity=:right,
-                title="Potential evolution of a subset of 3 neurons", xlabel="", ylabel="Potential (V)")
+    plots = []
 
-    pv = plot(sol.t, var.(sol.u), title="Variance", ylabel=L"Var$(t)$ (V$^2$)")
+    title = u+v+a > 1
 
-    pa = histogram(para.spikes.t, bins=0:activitybinsize:tend, weights=1/N*length.(para.spikes.neurons), normalize=:density,
-                    title="Activity", xlabel=L"$t$ (s)", ylabel=L"$A(t)$ (#/s)")
+    if u
+        push!(plots, plot(sol, idxs=[round(Int, i) for i in range(1, N, length=3)], continuity=:right,
+                    title=(title ? "Potential evolution of a subset of 3 neurons" : ""), xlabel="", ylabel="Potential (V)"))
+    end
+    if v
+        push!(plots, plot(sol.t, var.(sol.u), title=(title ? "Variance" : ""), ylabel=L"Var$(t)$ (V$^2$)"))
+    end
+    if a
+        push!(plots, histogram(para.spikes.t, bins=0:activitybinsize:tend, weights=1/N*length.(para.spikes.neurons), normalize=:density,
+                        title=(title ? "Activity" : ""), xlabel=L"$t$ (s)", ylabel=L"$A(t)$ (#/s)"))
+    end
 
     # Stack the plots
-    uvaplot = plot(pu, pv, pa, layout=(3, 1), link=:x, thickness_scaling=1)
+    uvaplot = plot(plots..., layout=(u+v+a, 1), link=:x, thickness_scaling=1)
 
     if save
         filesuffix = genfilesuffix(para)
-        png(uvaplot, "images/uva_" * filesuffix)
+        plotid = "images/" * (u ? "u" : "") * (v ? "v" : "") * (a ? "a" : "") * "_"
+        png(uvaplot, plotid * filesuffix)
     end
 
     display(uvaplot)
@@ -63,7 +73,7 @@ end
 """
 Create an animation of the potential density evolution.
 """
-function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5, playspeed::Real = 1, save::Bool = false)
+function udensityanim(sol::ODESolution, para; binsize::Real = 0.1, fps::Int = 5, playspeed::Real = 1, save::Bool = false)
     @unpack tend = para
 
     timesteps = range(0, tend, round(Int, fps*tend))       # NOTE: tstart = 0
@@ -72,8 +82,8 @@ function udensityanim(sol::ODESolution, para; binsize::Real = 0.5, fps::Int = 5,
 
     # TODO: maybe add vertical line at V_rest
     udensityanim = @animate for t in timesteps
-        histogram(sol(t), bins=bins, normalize=:pdf,
-                    xlims=(0,1), ylims=(0,ymax), title="Potential density at t = $(@sprintf("%.2f", t))")
+        histogram(sol(t), bins=bins, normalize=:pdf, xlabel=L"$u$",
+                    xlims=(0,1), ylims=(0,ymax), title="Potential distribution at t = $(@sprintf("%.2f", t))")
     end
 
     if save
