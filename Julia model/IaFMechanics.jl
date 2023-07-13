@@ -17,8 +17,6 @@ Also contains logging of the spikes, so new instances should be created for ever
     leaky::Bool = true                        # Whether to use leaky IaF (alternative is exponential)
 
     # Driving force parameters (only relevant for exponential)
-    # delta_T = 0.5 / 17                      #( ) Sharpness parameter
-    # theta_rh = 15 / 17                      #(V) Rheobase threshold
     theta_rh = 0.45                           #(V) Rheobase threshold
     delta_T = 0.19                            #( ) Sharpness parameter
 
@@ -37,7 +35,10 @@ Also contains logging of the spikes, so new instances should be created for ever
 
     # Learning
     learning::Bool = false                              # Whether learning takes place, i.e., wheter W changes
-    F::Function = (w,Δt,d) -> 0                         # Learning rule function, arguments: current weight, time since spike, distance
+    Fp::Function = (w,Δt) -> 0                          # Arguments: current weight, time since spike
+    Fm::Function = (w,Δt) -> 0                          # Arguments: current weight, time since spike
+    Gp::Function = w -> 0                               # Argument: current weight
+    Gm::Function = w -> 0                               # Argument: current weight
 
     # Initial conditions
     r = 0.4; @assert r >= 0                 #(V) Potential radius around 0
@@ -66,7 +67,7 @@ function setW(para::IaFParameters)::Nothing
         w = x -> w0
 
     elseif w0distr == :gaussian                                     # Gaussian based on distance
-        w = x -> w0/sqrt(2π * sig1) * exp(-x^2/(2sig1^2))        
+        w = x -> w0 * exp(-x^2/(2sig1^2))        
         
     elseif w0distr == :mexican                                      # "Mexican-hat" based on distance
         @assert sig2 > sig1
@@ -103,7 +104,7 @@ function genu0(para::IaFParameters)::Vector{Float64}
         u0 = N > 1 ? range(min(0.99, V_rest+r), V_rest-r, N) : [0]
 
     elseif u0distr == :uniform                                      #~Unif[-r,r]
-        d = Uniform(V_rest-r, min(0.99, V_rest+r))
+        d = Uniform(max(0,V_rest-r), min(0.999, V_rest+r))
         u0 = sort(rand(d, N), rev=true)
 
     elseif u0distr == :normal                                       #~N(0,r^2) (truncated)
@@ -162,7 +163,7 @@ Assumes that the firingneuron it is passed has the highest potential of all neur
 Assumes that weights are sufficiently small such that potentials will not be elevated all the way from 0 to 1 by other firings alone.
 """
 function fire!(integrator, firingneuron::Int)
-    @unpack spikes = integrator.p
+    @unpack spikes, N = integrator.p
     
     # Search for neurons that have exactly the same potential as the firingneuron (they should also fire)
     firingneurons::Vector{Int} = findall(u -> u == integrator.u[firingneuron], integrator.u)
@@ -172,7 +173,7 @@ function fire!(integrator, firingneuron::Int)
     while !isempty(firingneurons)
 
         # Print if there are more then one firingneurons, as this is exceptional
-        # TODO: if this never happens, maybe optimize by removing the findalls
+        # TODO: if this never/rarely happens, maybe optimize by removing the findalls
         if length(firingneurons) > 1
             println("Neurons $firingneurons fired *exactly* at the same fire iteration at time $(integrator.t)")
         end
@@ -180,40 +181,54 @@ function fire!(integrator, firingneuron::Int)
         # Increment potential of all neurons based on weights
         integrator.u .+= sum(integrator.p.W[:, firingneurons], dims=2)       # TODO: could exclude firingneurons here because of reset
 
-        # Reset potential of the firing neurons (NOTE: potential(s) can be changed later by new firing neurons)
+        # Reset potential of the firing neurons (NOTE: these potential(s) can be changed later by new firing neurons)
         integrator.u[firingneurons] .= 0.0
 
         
-        ### (Possibly) update weights, in particular the synapses that go into the firingneuron(s)
+        ### (Possibly) update weights, in particular the synapses that go into and out of the firingneuron(s)
+        # Weights are only updated if at most one neuron is firing (because otherwise they can not be ordered in time)
 
-        if integrator.p.learning
+        if integrator.p.learning && length(firingneurons) == 1
 
-        # TODO: if we keep this loop, make sure that is ordered efficiently
-        # I think we might as well loop over all sigmaindices first, and the over their spikes[sigmaindex, :neurons]
-        # Although that might be inefficient with the distance computation
-        for i = firingneurons
-            for j = 1:integrator.p.N
+            i = firingneurons[1]    # firing neuron
+
+            # TODO: if we keep this loop, make sure that is ordered efficiently
+            # I think we might as well loop over all sigmaindices first, and then over their spikes[sigmaindex, :neurons]
+            for j = 1:N
                 if j != i
-                    dist::Float64 = norm(integrator.p.X[i] .- integrator.p.X[j])
+                    # Compute and store normalized current weights
+                    w_xixj = N*integrator.p.W[i, j]
+                    w_xjxi = N*integrator.p.W[j, i]
 
+                    # Storage variables for the change in normalized weight
+                    # (Multiplication with 1/N is done after aggregating all increments to improve float stability)
+                    Δw_xixj = 0
+                    Δw_xjxi = 0
+
+                    # Time-dependent updates
                     for spikeindex in 1:(size(spikes)[1])
                         if j in spikes[spikeindex, :neurons]
                             Δt::Float64 = integrator.t - spikes[spikeindex, :t]
 
-                            # Update presynaptic weight w_ij (j -> i)
-                            integrator.p.W[i, j] += integrator.p.F(
-                                                        integrator.p.W[i, j],
-                                                        Δt, dist)
-                            # Update postsynaptic weight w_ji (i -> j)
-                            integrator.p.W[j, i] += integrator.p.F(
-                                                        integrator.p.W[j, i],
-                                                        -Δt, dist)
+                            # Update normalized presynaptic weight (j -> i)
+                            Δw_xixj += integrator.p.Fp(w_xixj, Δt)
+
+                            # Update normalized postsynaptic weight (i -> j)
+                            Δw_xjxi += integrator.p.Fm(w_xjxi, Δt)
                                 
                         end
                     end
+
+                    # Non-time-dependent updates
+                    Δw_xixj += integrator.p.Gp(Δw_xixj)
+                    Δw_xjxi += integrator.p.Gp(Δw_xjxi)
+
+                    # Update non-normalized weights
+                    integrator.p.W[i, j] += 1/N * Δw_xixj
+                    integrator.p.W[j, i] += 1/N * Δw_xjxi
+
                 end
             end
-        end
         end
 
 
@@ -270,6 +285,7 @@ Returns tuple with solution object and possibly savedweights.
 """
 function solveiaf(para::IaFParameters, u0::Vector{Float64}; savepotentials::Bool = true, saveweightsperiod::Real = 0)
     @unpack leaky, tend, N, spikes = para
+    @assert length(u0) == N "Initial condition of incorrect size provided"
 
     empty!(spikes)      # clear spike data from a possible previous run
     setW(para)          # set (initial) weights in W based on para.w0distr's value
