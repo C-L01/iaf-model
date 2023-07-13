@@ -99,7 +99,7 @@ end
 """
 Create a spatial animation of the activity evolution. The fps depends on the timebinsize, so it is not a parameter.
 """
-function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 = 0.2,
+function Aspatialanim(para; spatialbinsize::Real = 0.1, timebinsize::Real = 0.2,
                             playspeed::Real = 1, save::Bool = false)
     @unpack N, tend, X, spikes = para
 
@@ -119,8 +119,9 @@ function Aspatialanim(para; spatialbinsize::Float64 = 0.1, timebinsize::Float64 
         end
         
         spikelocations = map(j -> X[j], spikingneurons)
-        histogram2d(spikelocations, bins=0:spatialbinsize:1, color=cgrad(:YlOrRd_9), cbarlims=(0,N/nrbins),
-                    title="Activity on [$(timesteps[i]), $(timesteps[i+1])) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$")
+        histogram2d(spikelocations, bins=0:spatialbinsize:1, weights=1/(N*timebinsize)*ones(length(spikelocations)), color=cgrad(:YlOrRd_9),
+                    cbarlims=(0,1/nrbins), cbar=true, cbar_title=L"$A$", colorbar_titlefontrotation=270.0, colorbar_title_location=:right,
+                    title="Activity on [$(timesteps[i]), $(timesteps[i+1])) (s)", xlabel=L"$x^1$", ylabel=L"$x^2$")
         
     end
 
@@ -195,7 +196,8 @@ function uspatialanim(sol::ODESolution, para; fps::Int = 10, playspeed::Real = 1
     end
 
     uspatialanim = @animate for t in timesteps
-        scatter(X, marker_z=sol(t), color=cgrad(:blues, rev=false), framestyle=:none,
+        scatter(X, marker_z=sol(t), color=cgrad([:blue, :orange], [0.5, 0.95]), framestyle=:none,
+                    cbarlims=(0,1), cbar=true, cbar_title=L"$u$", colorbar_titlefontrotation=270.0,
                     xlims=(-0.1,1.1), ylims=(-0.1,1.1), title="Spatial potentials at t = $(@sprintf("%.2f", t))")
         if t in spikes.t
             scatter!(X[spikes[findfirst(==(t), spikes.t), :neurons]], mc=:red, ms=8)
@@ -230,10 +232,10 @@ function Wplot(para, savedweights::SavedValues; binsize::Float64 = 0.1, save::Bo
         total_postsynaptic = vec(sum(W, dims=1))        # total outgoing weight strength per neuron
 
         push!(preplots, histogram2d(X, bins=0:binsize:1, weights=total_presynaptic, color=cgrad(:roma, rev=true), cbarlims=(-N*w0/nrbins,N*w0/nrbins),
-                        title="Pre on $(savedweights.t[n]) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$"))
+                        title="Pre on $(savedweights.t[n]) (s)", xlabel=L"$x^1$", ylabel=L"$x^2$"))
 
         push!(postplots, histogram2d(X, bins=0:binsize:1, weights=total_postsynaptic, color=cgrad(:roma, rev=true), cbarlims=(-N*w0/nrbins,N*w0/nrbins),
-                        title="Post on $(savedweights.t[n]) (s)", xlabel=L"$x_1$", ylabel=L"$x_2$"))
+                        title="Post on $(savedweights.t[n]) (s)", xlabel=L"$x^1$", ylabel=L"$x^2$"))
 
         # for j in spikingneurons
         #     postneurons = 1:N .!= j
